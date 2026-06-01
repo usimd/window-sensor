@@ -16,6 +16,11 @@
 	};
 };
 
+/* Delete the board's default partition layout to avoid label conflicts */
+&cpuapp_rram {
+	/delete-node/ partitions;
+};
+
 &cpuapp_rram {
 	partitions {
 		compatible = "fixed-partitions";

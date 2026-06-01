@@ -45,8 +45,8 @@ jobs:
             imgtool keygen -k firmware/keys/signing-key.pem -t ed25519
           fi
 
-          just version="0.1.0+$(git rev-parse --short HEAD)" sign
-          just version="0.1.0+$(git rev-parse --short HEAD)" sign-hex
+          just version="0.1.0+$(git rev-list --count HEAD)" sign
+          just version="0.1.0+$(git rev-list --count HEAD)" sign-hex
           rm -f firmware/keys/signing-key.pem
 
       - name: Upload firmware ELF
