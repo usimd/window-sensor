@@ -1,0 +1,7 @@
+(fp_lib_table
+	(version 7)
+	(lib (name "lib") (type "KiCad") (uri "${KIPRJMOD}/lib") (options "") (descr ""))
+	(lib (name "Battery_0.5AA") (type "KiCad") (uri "${KIPRJMOD}/lib/Battery_0.5AA.pretty") (options "") (descr ""))
+	(lib (name "Connector_SpringPins") (type "KiCad") (uri "${KIPRJMOD}/lib/Connector_SpringPins.pretty") (options "") (descr ""))
+	(lib (name "NORA-B226") (type "KiCad") (uri "${KIPRJMOD}/lib/NORA-B226.pretty") (options "") (descr ""))
+)

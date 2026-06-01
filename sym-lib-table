@@ -1,0 +1,5 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "TMAG5273") (type "KiCad") (uri "${KIPRJMOD}/lib/TMAG5273.kicad_sym") (options "") (descr ""))
+	(lib (name "NORA-B226-00B") (type "KiCad") (uri "${KIPRJMOD}/lib/NORA-B226-00B.kicad_sym") (options "") (descr ""))
+)

@@ -1,0 +1,4 @@
+# MCUboot signing keys
+# Run `just gen-key` to generate an ed25519 key pair.
+# The private key (signing-key.pem) is gitignored.
+# Only the public key should be committed.

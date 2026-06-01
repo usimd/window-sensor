@@ -1,0 +1,241 @@
+name: Build firmware images
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      ncs_version:
+        description: 'nRF Connect SDK version (e.g., v2.9.0)'
+        required: false
+        default: 'v2.9.0'
+
+env:
+  CHIP: nRF54L10_xxAA
+  SLOT_SIZE: "0x60000"
+  HEADER_SIZE: "0x200"
+  NCS_VERSION: ${{ inputs.ncs_version || 'v2.9.0' }}
+  MCUBOOT_BOARD: "nrf54l10dk/nrf54l10/cpuapp"
+
+jobs:
+  build-mcuboot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install west and dependencies
+        run: |
+          pip install west imgtool
+
+      - name: Cache nRF Connect SDK workspace
+        id: cache-ncs
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ncs-workspace
+          key: ncs-${{ env.NCS_VERSION }}-mcuboot-${{ hashFiles('firmware/mcuboot/mcuboot.conf', 'firmware/mcuboot/partitions.overlay') }}
+          restore-keys: |
+            ncs-${{ env.NCS_VERSION }}-mcuboot-
+            ncs-${{ env.NCS_VERSION }}-
+
+      - name: Initialize west workspace
+        if: steps.cache-ncs.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/ncs-workspace
+          cd /tmp/ncs-workspace
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr ${{ env.NCS_VERSION }}
+          west update --narrow -o=--depth=1
+
+      - name: Decode signing key
+        env:
+          MCUBOOT_SIGNING_KEY: ${{ secrets.MCUBOOT_SIGNING_KEY }}
+        run: |
+          if [[ -n "${MCUBOOT_SIGNING_KEY:-}" ]]; then
+            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > /tmp/signing-key.pem
+          else
+            echo "::warning::No signing key secret — generating ephemeral dev key"
+            imgtool keygen -k /tmp/signing-key.pem -t ed25519
+          fi
+
+      - name: Build MCUboot
+        run: |
+          cd /tmp/ncs-workspace
+          west build \
+            -b ${{ env.MCUBOOT_BOARD }} \
+            -d build-mcuboot \
+            bootloader/mcuboot/boot/zephyr \
+            --pristine=auto \
+            -- \
+            -DOVERLAY_CONFIG="${{ github.workspace }}/firmware/mcuboot/mcuboot.conf" \
+            -DDTC_OVERLAY_FILE="${{ github.workspace }}/firmware/mcuboot/partitions.overlay" \
+            -DCONFIG_BOOT_SIGNATURE_KEY_FILE="\"/tmp/signing-key.pem\""
+
+      - name: Extract bootloader hex
+        run: |
+          cp /tmp/ncs-workspace/build-mcuboot/zephyr/zephyr.hex \
+            firmware/mcuboot/mcuboot-nrf54l10.hex
+          echo "MCUboot size: $(stat -c%s firmware/mcuboot/mcuboot-nrf54l10.hex) bytes"
+          rm -f /tmp/signing-key.pem
+
+      - name: Upload MCUboot hex
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcuboot-hex
+          path: firmware/mcuboot/mcuboot-nrf54l10.hex
+
+  build-images:
+    needs: build-mcuboot
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+          components: clippy, rustfmt, llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: firmware
+
+      - name: Install tools
+        run: |
+          pip install imgtool intelhex
+          cargo install cargo-binutils --locked --quiet
+
+      - name: Download MCUboot hex
+        uses: actions/download-artifact@v4
+        with:
+          name: mcuboot-hex
+          path: firmware/mcuboot
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VER="${GITHUB_REF_NAME#v}"
+          else
+            VER="0.0.0-dev+$(git rev-parse --short HEAD)"
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Building version: $VER"
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Convert ELF to binary and HEX
+        run: |
+          cargo objcopy --release -- -O binary \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.bin
+          cargo objcopy --release -- -O ihex \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.hex
+
+      - name: Sign firmware
+        env:
+          MCUBOOT_SIGNING_KEY: ${{ secrets.MCUBOOT_SIGNING_KEY }}
+        run: |
+          if [[ -n "${MCUBOOT_SIGNING_KEY:-}" ]]; then
+            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > /tmp/signing-key.pem
+          elif [[ -f keys/signing-key.pem ]]; then
+            cp keys/signing-key.pem /tmp/signing-key.pem
+          else
+            echo "::warning::No signing key — using ephemeral dev key"
+            imgtool keygen -k /tmp/signing-key.pem -t ed25519
+          fi
+
+          imgtool sign \
+            --key /tmp/signing-key.pem \
+            --header-size ${{ env.HEADER_SIZE }} \
+            --align 4 \
+            --slot-size ${{ env.SLOT_SIZE }} \
+            --version "${{ steps.version.outputs.version }}" \
+            --pad-header \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.bin \
+            target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
+
+          imgtool sign \
+            --key /tmp/signing-key.pem \
+            --header-size ${{ env.HEADER_SIZE }} \
+            --align 4 \
+            --slot-size ${{ env.SLOT_SIZE }} \
+            --version "${{ steps.version.outputs.version }}" \
+            --pad-header \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.hex \
+            target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
+
+          rm -f /tmp/signing-key.pem
+
+      - name: Create factory image (MCUboot + signed app)
+        run: |
+          python3 -c "
+          from intelhex import IntelHex
+          boot = IntelHex('mcuboot/mcuboot-nrf54l10.hex')
+          app = IntelHex('target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex')
+          boot.merge(app, overlap='error')
+          boot.write_hex_file('target/thumbv8m.main-none-eabihf/release/window-sensor-factory.hex')
+          print(f'Factory image: bootloader @ 0x{boot.minaddr():08X}, app @ 0x{app.minaddr():08X}')
+          "
+
+      - name: Binary size report
+        run: |
+          cargo size --release -- -A | tee size-report.txt
+          echo "---"
+          OTA_SIZE=$(stat -c%s target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin)
+          echo "OTA image size: $OTA_SIZE bytes"
+          echo "Slot capacity:  393216 bytes (384 KiB)"
+          echo "Utilization:    $(( OTA_SIZE * 100 / 393216 ))%"
+
+      - name: Upload OTA image
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-ota
+          path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
+
+      - name: Upload factory image
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-factory
+          path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-factory.hex
+
+      - name: Upload signed hex
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-signed-hex
+          path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
+
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-size
+          path: firmware/size-report.txt
+
+      - name: Upload partition manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-partition-manifest
+          path: firmware/target/thumbv8m.main-none-eabihf/release/partition_manifest.json
+
+  release:
+    needs: [build-mcuboot, build-images]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/firmware-ota/window-sensor-ota.bin
+            artifacts/firmware-factory/window-sensor-factory.hex
+            artifacts/firmware-signed-hex/window-sensor-signed.hex
+            artifacts/mcuboot-hex/mcuboot-nrf54l10.hex
+            artifacts/firmware-size/size-report.txt
+            artifacts/firmware-partition-manifest/partition_manifest.json

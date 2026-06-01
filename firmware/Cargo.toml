@@ -1,0 +1,96 @@
+[package]
+name = "window-sensor"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+name = "window_sensor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "window-sensor"
+path = "src/main.rs"
+test = false
+
+# === Host-portable dependencies (lib only needs these) ===
+[dependencies]
+fixed = "1.10"
+libm = "0.2"
+embedded-storage = "0.3"
+
+# === Target-specific: only for ARM embedded builds ===
+[target.'cfg(all(target_arch = "arm", target_os = "none"))'.dependencies]
+# Embassy runtime
+embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
+embassy-time = { version = "0.5", default-features = false, features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-nrf = { version = "0.10", default-features = false, features = ["defmt", "nrf54l10-app-s", "time-driver-grtc", "gpiote", "unstable-pac", "time", "nfc-pins-as-gpio"] }
+embassy-sync = { version = "0.8", features = ["defmt"] }
+embassy-futures = "0.1"
+embassy-embedded-hal = { version = "0.6", default-features = false }
+
+# BLE (trouble host + nrf-sdc controller)
+nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "peripheral", "nrf54l10-app-s"] }
+nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "critical-section-impl", "nrf54l10-app-s"] }
+bt-hci = { version = "0.9", default-features = false, features = ["defmt"] }
+trouble-host = { version = "0.4", features = ["derive"] }
+
+# HAL traits
+embedded-hal = "1.0"
+embedded-hal-async = "1.0"
+embedded-io-async = { version = "0.7", features = ["defmt"] }
+# Public sensor drivers
+tmag5273 = { version = "3.6.10", default-features = false, features = ["defmt", "libm"] }
+sht4x = { version = "0.2.0", default-features = false, features = ["defmt"] }
+lis2dtw12 = { version = "0.3.0", default-features = false, features = ["blocking", "defmt"] }
+sensirion-i2c = "0.4"
+
+# Logging + panic
+defmt = "1.0"
+defmt-rtt = "1.0"
+panic-probe = { version = "1.0", features = ["print-defmt"] }
+
+# Cortex-M
+cortex-m = { version = "0.7", features = ["inline-asm"] }
+cortex-m-rt = "0.7"
+
+# Utilities
+static_cell = "2"
+heapless = "0.8"
+portable-atomic = "1"
+
+[dev-dependencies]
+# Host-side testing (no hardware needed)
+btsensor = "0.1.2"
+uuid = "1"
+
+[features]
+default = []
+debug-uart = []         # Enable UART streaming (dev only — adds ~2 KB flash)
+ids = []                # MEMS intrusion detection subsystem
+soc-heater = []         # SHT4x heater-based SoC estimation
+
+[profile.release]
+codegen-units = 1
+debug = 2               # Keep debug info for defmt + probe-rs
+lto = "fat"
+opt-level = "s"         # Optimize for size (flash-constrained)
+overflow-checks = false # Save ~1 KB — we use wrapping math consciously
+
+[profile.dev]
+debug = 2
+opt-level = 1           # Some optimization even in dev (embedded needs it)
+
+[patch.crates-io]
+# Pin embassy to known-good revisions (trouble example rev)
+embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+embassy-nrf = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+embassy-sync = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+embassy-time-driver = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
+nrf-sdc = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "e1fbb89a173dfc053ec4877d366f51804eac498d" }
+nrf-mpsl = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "e1fbb89a173dfc053ec4877d366f51804eac498d" }

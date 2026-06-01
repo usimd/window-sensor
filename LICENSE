@@ -1,0 +1,11 @@
+This project uses a dual-license model:
+
+  Hardware (PCB, enclosure, mechanical):
+    CERN Open Hardware Licence Version 2 — Weakly Reciprocal (CERN-OHL-W-2.0)
+    See LICENSE-CERN-OHL-W-2.0.txt
+
+  Firmware (firmware/):
+    Apache License, Version 2.0
+    See firmware/LICENSE-APACHE-2.0.txt
+
+Copyright (c) 2024-2026 usimd

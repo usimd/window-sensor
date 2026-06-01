@@ -1,0 +1,50 @@
+/*
+ * MCUboot partition layout for window-sensor (nRF54L10, 1 MiB flash).
+ * Must match firmware/src/partition.rs::mcuboot_default()
+ *
+ * Layout:
+ *   0x00000000 - 0x0000FFFF : MCUboot bootloader (64 KiB)
+ *   0x00010000 - 0x0006FFFF : Primary slot (384 KiB)
+ *   0x00070000 - 0x000CFFFF : Secondary slot (384 KiB)
+ *   0x000D0000 - 0x000DFFFF : Scratch (64 KiB)
+ *   0x000E0000 - 0x000FFFFF : Settings / NVS (128 KiB)
+ */
+
+/ {
+	chosen {
+		zephyr,code-partition = &boot_partition;
+	};
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x10000>;
+		};
+
+		slot0_partition: partition@10000 {
+			label = "image-0";
+			reg = <0x00010000 0x60000>;
+		};
+
+		slot1_partition: partition@70000 {
+			label = "image-1";
+			reg = <0x00070000 0x60000>;
+		};
+
+		scratch_partition: partition@d0000 {
+			label = "image-scratch";
+			reg = <0x000d0000 0x10000>;
+		};
+
+		storage_partition: partition@e0000 {
+			label = "storage";
+			reg = <0x000e0000 0x20000>;
+		};
+	};
+};

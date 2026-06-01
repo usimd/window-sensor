@@ -1,0 +1,151 @@
+name: Test and build
+on:
+  push:
+  pull_request:
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv8m.main-none-eabihf
+          components: clippy, rustfmt, llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: firmware
+
+      - name: Format check
+        run: cargo fmt -- --check
+
+      - name: Clippy (ARM release)
+        run: cargo clippy --release -- -D warnings
+
+      - name: Clippy (ARM release, soc-heater)
+        run: cargo clippy --release --features soc-heater -- -D warnings
+
+      - name: Unit tests (host)
+        run: cargo test --lib --target x86_64-unknown-linux-gnu
+
+      - name: Unit tests (host, soc-heater)
+        run: cargo test --lib --target x86_64-unknown-linux-gnu --features soc-heater
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Binary size
+        run: |
+          cargo install cargo-binutils --locked --quiet
+          cargo size --release -- -A | tee /tmp/size.txt
+
+      - name: Sign firmware image
+        env:
+          MCUBOOT_SIGNING_KEY: ${{ secrets.MCUBOOT_SIGNING_KEY }}
+        run: |
+          pip install --quiet imgtool
+          cargo objcopy --release -- -O binary \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.bin
+          cargo objcopy --release -- -O ihex \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.hex
+
+          # Use secret key, local key, or generate ephemeral dev key
+          if [[ -n "${MCUBOOT_SIGNING_KEY:-}" ]]; then
+            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > /tmp/signing-key.pem
+          elif [[ -f keys/signing-key.pem ]]; then
+            cp keys/signing-key.pem /tmp/signing-key.pem
+          else
+            echo "::warning::No signing key — using ephemeral dev key (not for production)"
+            imgtool keygen -k /tmp/signing-key.pem -t ed25519
+          fi
+
+          VERSION="0.1.0-ci+$(git rev-parse --short HEAD)"
+
+          imgtool sign \
+            --key /tmp/signing-key.pem \
+            --header-size 0x200 \
+            --align 4 \
+            --slot-size 0x60000 \
+            --version "$VERSION" \
+            --pad-header \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.bin \
+            target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
+
+          imgtool sign \
+            --key /tmp/signing-key.pem \
+            --header-size 0x200 \
+            --align 4 \
+            --slot-size 0x60000 \
+            --version "$VERSION" \
+            --pad-header \
+            target/thumbv8m.main-none-eabihf/release/window-sensor.hex \
+            target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
+
+          rm -f /tmp/signing-key.pem
+          echo "Signed OTA image: $(stat -c%s target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin) bytes"
+
+      - name: Upload firmware ELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-elf
+          path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor
+
+      - name: Upload partition manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-partition-manifest
+          path: firmware/target/thumbv8m.main-none-eabihf/release/partition_manifest.json
+
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-size
+          path: /tmp/size.txt
+
+      - name: Upload OTA image
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-ota
+          path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
+
+      - name: Upload signed HEX
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-signed-hex
+          path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
+
+  kicad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: sparkengineering/kicad-action@v4
+        with:
+          kicad_sch: window-sensor.kicad_sch
+          sch_pdf: true
+          sch_bom: true
+          sch_erc: true
+          pcb_drc: true
+          kicad_pcb: window-sensor.kicad_pcb
+          pcb_gerbers: true
+
+      - name: Upload PCB artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcb
+          path: |
+            sch.pdf
+            bom.csv
+            gbr.zip
+
+      - name: Upload ERC/DRC reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcb-reports
+          path: "*.rpt"
