@@ -1,4 +1,4 @@
-# Window Sensor
+# BLE window sensor for Homeassistant
 
 ![License HW: CERN-OHL-W-2.0](https://img.shields.io/badge/license_HW-CERN--OHL--W--2.0-blue)
 ![License FW: Apache-2.0](https://img.shields.io/badge/license_FW-Apache--2.0-blue)
