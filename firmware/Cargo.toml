@@ -34,7 +34,7 @@ embassy-embedded-hal = { version = "0.6", default-features = false }
 nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "peripheral", "nrf54l10-app-s"] }
 nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "critical-section-impl", "nrf54l10-app-s"] }
 bt-hci = { version = "0.9", default-features = false, features = ["defmt"] }
-trouble-host = { version = "0.4", features = ["derive"] }
+trouble-host = { version = "0.6", features = ["derive"] }
 
 # HAL traits
 embedded-hal = "1.0"
@@ -57,7 +57,7 @@ cortex-m-rt = "0.7"
 
 # Utilities
 static_cell = "2"
-heapless = "0.8"
+heapless = "0.9"
 portable-atomic = "1"
 
 [dev-dependencies]
