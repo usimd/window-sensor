@@ -16,7 +16,7 @@
 	};
 };
 
-&flash0 {
+&cpuapp_rram {
 	partitions {
 		compatible = "fixed-partitions";
 		#address-cells = <1>;

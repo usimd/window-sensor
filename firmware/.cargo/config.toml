@@ -1,0 +1,9 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = "probe-rs run --chip nRF54L10_xxAA"
+
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[env]
+DEFMT_LOG = "trace"
+BINDGEN_EXTRA_CLANG_ARGS = "--sysroot=/usr/lib/arm-none-eabi -I/usr/lib/gcc/arm-none-eabi/13.2.1/include -I/usr/include/newlib"

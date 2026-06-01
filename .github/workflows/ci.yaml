@@ -91,7 +91,10 @@ jobs:
         run: |
           docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
-            kicad/kicad:10.0 kicad-cli sch erc --exit-code-violations window-sensor.kicad_sch
+            kicad/kicad:10.0 sh -c "\
+              mkdir -p /root/.config/kicad/10.0 && \
+              cp /usr/share/kicad/template/sym-lib-table /root/.config/kicad/10.0/ && \
+              kicad-cli sch erc --exit-code-violations window-sensor.kicad_sch"
 
       - name: DRC (Design Rules Check)
         run: |
@@ -103,13 +106,19 @@ jobs:
         run: |
           docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
-            kicad/kicad:10.0 kicad-cli sch export pdf -o sch.pdf window-sensor.kicad_sch
+            kicad/kicad:10.0 sh -c "\
+              mkdir -p /root/.config/kicad/10.0 && \
+              cp /usr/share/kicad/template/sym-lib-table /root/.config/kicad/10.0/ && \
+              kicad-cli sch export pdf -o sch.pdf window-sensor.kicad_sch"
 
       - name: Export BOM
         run: |
           docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
-            kicad/kicad:10.0 kicad-cli sch export bom -o bom.csv window-sensor.kicad_sch
+            kicad/kicad:10.0 sh -c "\
+              mkdir -p /root/.config/kicad/10.0 && \
+              cp /usr/share/kicad/template/sym-lib-table /root/.config/kicad/10.0/ && \
+              kicad-cli sch export bom -o bom.csv window-sensor.kicad_sch"
 
       - name: Export Gerbers
         run: |
