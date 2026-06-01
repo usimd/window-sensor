@@ -84,7 +84,7 @@ jobs:
           rm -f /tmp/signing-key.pem
 
       - name: Upload MCUboot hex
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mcuboot-hex
           path: firmware/mcuboot/mcuboot-nrf54l10.hex
@@ -113,7 +113,7 @@ jobs:
           cargo install cargo-binutils --locked --quiet
 
       - name: Download MCUboot hex
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: mcuboot-hex
           path: firmware/mcuboot
@@ -194,31 +194,31 @@ jobs:
           echo "Utilization:    $(( OTA_SIZE * 100 / 393216 ))%"
 
       - name: Upload OTA image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-ota
           path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
 
       - name: Upload factory image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-factory
           path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-factory.hex
 
       - name: Upload signed hex
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-signed-hex
           path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
 
       - name: Upload size report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-size
           path: firmware/size-report.txt
 
       - name: Upload partition manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-partition-manifest
           path: firmware/target/thumbv8m.main-none-eabihf/release/partition_manifest.json
@@ -230,7 +230,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
