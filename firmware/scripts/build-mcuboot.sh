@@ -49,6 +49,7 @@ fi
 # --- Build MCUboot ---
 echo "Building MCUboot..."
 west build \
+    --no-sysbuild \
     -b "$BOARD" \
     -d build-mcuboot \
     bootloader/mcuboot/boot/zephyr \

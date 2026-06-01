@@ -60,6 +60,7 @@ jobs:
         run: |
           cd /tmp/ncs-workspace
           west build \
+            --no-sysbuild \
             -b ${{ env.MCUBOOT_BOARD }} \
             -d build-mcuboot \
             bootloader/mcuboot/boot/zephyr \
