@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MCUBOOT_DIR="$REPO_ROOT/firmware/mcuboot"
 
-NCS_VERSION="${NCS_VERSION:-v2.9.0}"
+NCS_VERSION="${NCS_VERSION:-v3.3.0}"
 SIGNING_KEY="${SIGNING_KEY:-$REPO_ROOT/firmware/keys/signing-key.pem}"
 OUTPUT_HEX="${OUTPUT_HEX:-$MCUBOOT_DIR/mcuboot-nrf54l10.hex}"
 BOARD="${BOARD:-nrf54l10dk/nrf54l10/cpuapp}"

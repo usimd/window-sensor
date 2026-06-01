@@ -6,9 +6,6 @@ on:
 jobs:
   firmware:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: firmware
     steps:
       - uses: actions/checkout@v6
 
@@ -21,73 +18,36 @@ jobs:
         with:
           workspaces: firmware
 
-      - name: Format check
-        run: cargo fmt -- --check
+      - name: Install just
+        run: cargo install just --locked --quiet
 
-      - name: Clippy (ARM release)
-        run: cargo clippy --release -- -D warnings
+      - name: Install cargo-binutils
+        run: cargo install cargo-binutils --locked --quiet
 
-      - name: Clippy (ARM release, soc-heater)
-        run: cargo clippy --release --features soc-heater -- -D warnings
-
-      - name: Unit tests (host)
-        run: cargo test --lib --target x86_64-unknown-linux-gnu
-
-      - name: Unit tests (host, soc-heater)
-        run: cargo test --lib --target x86_64-unknown-linux-gnu --features soc-heater
-
-      - name: Build release
-        run: cargo build --release
+      - name: Lint, test, build
+        run: just ci
 
       - name: Binary size
-        run: |
-          cargo install cargo-binutils --locked --quiet
-          cargo size --release -- -A | tee /tmp/size.txt
+        run: just size | tee /tmp/size.txt
 
       - name: Sign firmware image
         env:
           MCUBOOT_SIGNING_KEY: ${{ secrets.MCUBOOT_SIGNING_KEY }}
         run: |
           pip install --quiet imgtool
-          cargo objcopy --release -- -O binary \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.bin
-          cargo objcopy --release -- -O ihex \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.hex
 
-          # Use secret key, local key, or generate ephemeral dev key
+          # Decode signing key to the path just expects
+          mkdir -p firmware/keys
           if [[ -n "${MCUBOOT_SIGNING_KEY:-}" ]]; then
-            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > /tmp/signing-key.pem
-          elif [[ -f keys/signing-key.pem ]]; then
-            cp keys/signing-key.pem /tmp/signing-key.pem
+            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > firmware/keys/signing-key.pem
           else
-            echo "::warning::No signing key — using ephemeral dev key (not for production)"
-            imgtool keygen -k /tmp/signing-key.pem -t ed25519
+            echo "::warning::No signing key — generating ephemeral dev key"
+            imgtool keygen -k firmware/keys/signing-key.pem -t ed25519
           fi
 
-          VERSION="0.1.0-ci+$(git rev-parse --short HEAD)"
-
-          imgtool sign \
-            --key /tmp/signing-key.pem \
-            --header-size 0x200 \
-            --align 4 \
-            --slot-size 0x60000 \
-            --version "$VERSION" \
-            --pad-header \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.bin \
-            target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
-
-          imgtool sign \
-            --key /tmp/signing-key.pem \
-            --header-size 0x200 \
-            --align 4 \
-            --slot-size 0x60000 \
-            --version "$VERSION" \
-            --pad-header \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.hex \
-            target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
-
-          rm -f /tmp/signing-key.pem
-          echo "Signed OTA image: $(stat -c%s target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin) bytes"
+          just sign version="0.1.0-ci+$(git rev-parse --short HEAD)"
+          just sign-hex version="0.1.0-ci+$(git rev-parse --short HEAD)"
+          rm -f firmware/keys/signing-key.pem
 
       - name: Upload firmware ELF
         uses: actions/upload-artifact@v4
@@ -129,27 +89,32 @@ jobs:
 
       - name: ERC (Electrical Rules Check)
         run: |
-          docker run --rm -v "${{ github.workspace }}:/work" -w /work \
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch erc --exit-code-violations window-sensor.kicad_sch
 
       - name: DRC (Design Rules Check)
         run: |
-          docker run --rm -v "${{ github.workspace }}:/work" -w /work \
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli pcb drc --exit-code-violations window-sensor.kicad_pcb
 
       - name: Export schematic PDF
         run: |
-          docker run --rm -v "${{ github.workspace }}:/work" -w /work \
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch export pdf -o sch.pdf window-sensor.kicad_sch
 
       - name: Export BOM
         run: |
-          docker run --rm -v "${{ github.workspace }}:/work" -w /work \
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch export bom -o bom.csv window-sensor.kicad_sch
 
       - name: Export Gerbers
         run: |
-          docker run --rm -v "${{ github.workspace }}:/work" -w /work \
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 sh -c "mkdir -p gbr && kicad-cli pcb export gerbers -o gbr/ window-sensor.kicad_pcb && kicad-cli pcb export drill -o gbr/ window-sensor.kicad_pcb"
 
       - name: Upload PCB artifacts

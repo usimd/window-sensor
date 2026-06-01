@@ -102,8 +102,8 @@ rtt-attach:
 
 # === FULL CI LOOP (what the agent runs) ===
 
-# Agent loop: build → test → lint (no hardware)
-ci: fmt-check clippy test build
+# Full CI loop: lint → test → build (no hardware)
+ci: fmt-check clippy clippy-soc-heater test test-soc-heater build
     @echo "[CI] All checks passed"
 
 # Agent loop with hardware: build → flash → validate RTT → validate BLE
@@ -127,17 +127,17 @@ setup:
     cargo install just
     @echo "Setup complete."
 
-# Show binary size breakdown
-size:
-    arm-none-eabi-size -A {{elf}}
+# Show binary size breakdown (cargo-binutils, no arm-none-eabi toolchain needed)
+size: build
+    cd firmware && cargo size --release -- -A
 
 # Show section totals (text/data/bss)
-size-total:
-    arm-none-eabi-size {{elf}}
+size-total: build
+    cd firmware && cargo size --release
 
 # Show top 20 largest symbols
-bloat:
-    arm-none-eabi-nm --size-sort --print-size -r {{elf}} | head -20
+bloat: build
+    cd firmware && cargo nm --release -- --size-sort --print-size -r | head -20
 
 # === IMAGE SIGNING + FACTORY BUILD ===
 
@@ -158,10 +158,8 @@ gen-key:
 
 # Build + convert ELF to raw binary and Intel HEX
 objcopy: build
-    cd firmware && cargo objcopy --release -- -O binary \
-        target/thumbv8m.main-none-eabihf/release/window-sensor.bin
-    cd firmware && cargo objcopy --release -- -O ihex \
-        target/thumbv8m.main-none-eabihf/release/window-sensor.hex
+    rust-objcopy -O binary {{elf}} {{bin}}
+    rust-objcopy -O ihex {{elf}} {{hex}}
 
 # Sign the firmware for OTA delivery (produces .bin for SMP upload)
 sign: objcopy
