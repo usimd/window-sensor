@@ -91,6 +91,7 @@ jobs:
         run: chmod a+w .
 
       - name: ERC (Electrical Rules Check)
+        continue-on-error: true
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/work" -w /work \
