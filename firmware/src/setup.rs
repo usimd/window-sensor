@@ -15,11 +15,23 @@ const TAP_IDENTIFY_COUNT: usize = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), derive(defmt::Format))]
+pub enum CalibrationPhase {
+    Closed,
+    Tilt,
+    Open,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(all(target_arch = "arm", target_os = "none"), derive(defmt::Format))]
 pub enum SetupState {
     FactoryNew,
     Discovery,
     WaitingForClosedCalibration,
-    Calibrating,
+    CalibratingClosed,
+    WaitingForTiltCalibration,
+    CalibratingTilt,
+    WaitingForOpenCalibration,
+    CalibratingOpen,
     Ready,
     NeedsRecalibration,
     Debug,
@@ -30,10 +42,13 @@ pub enum SetupState {
 pub enum LedHint {
     Silent,
     DiscoverySlowBlink,
-    CalibrationConfirm,
+    CalibrationClosedPrompt,
+    CalibrationTiltPrompt,
+    CalibrationOpenPrompt,
     CalibrationOk,
     IdentifyPulse,
     Attention,
+    CalibrationFailed,
     FactoryResetAlternating,
     DebugSolid,
 }
@@ -62,6 +77,8 @@ pub enum SetupEvent {
     MagnetGesture(Gesture),
     MemsGesture(MemsGesture),
     WindowState(WindowState),
+    CalibrationCaptured(CalibrationPhase),
+    CalibrationRejected(CalibrationPhase),
     CalibrationStored,
     TamperDetected,
     DebugRequested,
@@ -72,7 +89,7 @@ pub struct SetupDecision {
     pub state: SetupState,
     pub led: LedHint,
     pub discovery_window_ms: Option<u32>,
-    pub should_capture_calibration: bool,
+    pub calibration_phase: Option<CalibrationPhase>,
     pub should_clear_state: bool,
     pub should_enter_debug: bool,
 }
@@ -83,7 +100,7 @@ impl SetupDecision {
             state,
             led: LedHint::Silent,
             discovery_window_ms: None,
-            should_capture_calibration: false,
+            calibration_phase: None,
             should_clear_state: false,
             should_enter_debug: false,
         }
@@ -159,15 +176,52 @@ impl SetupController {
                 if self.state == SetupState::WaitingForClosedCalibration
                     && state == WindowState::Closed
                 {
-                    self.state = SetupState::Calibrating;
+                    self.state = SetupState::CalibratingClosed;
                     let mut decision = SetupDecision::quiet(self.state);
-                    decision.led = LedHint::CalibrationConfirm;
-                    decision.should_capture_calibration = true;
+                    decision.led = LedHint::CalibrationClosedPrompt;
+                    decision.calibration_phase = Some(CalibrationPhase::Closed);
+                    return decision;
+                }
+
+                if self.state == SetupState::WaitingForTiltCalibration && state == WindowState::Tilt {
+                    self.state = SetupState::CalibratingTilt;
+                    let mut decision = SetupDecision::quiet(self.state);
+                    decision.led = LedHint::CalibrationTiltPrompt;
+                    decision.calibration_phase = Some(CalibrationPhase::Tilt);
+                    return decision;
+                }
+
+                if self.state == SetupState::WaitingForOpenCalibration && state == WindowState::Open {
+                    self.state = SetupState::CalibratingOpen;
+                    let mut decision = SetupDecision::quiet(self.state);
+                    decision.led = LedHint::CalibrationOpenPrompt;
+                    decision.calibration_phase = Some(CalibrationPhase::Open);
                     return decision;
                 }
 
                 SetupDecision::quiet(self.state)
             }
+            SetupEvent::CalibrationCaptured(phase) => {
+                let mut decision = SetupDecision::quiet(self.state);
+                match phase {
+                    CalibrationPhase::Closed => {
+                        self.state = SetupState::WaitingForTiltCalibration;
+                        decision.state = self.state;
+                        decision.led = LedHint::CalibrationTiltPrompt;
+                    }
+                    CalibrationPhase::Tilt => {
+                        self.state = SetupState::WaitingForOpenCalibration;
+                        decision.state = self.state;
+                        decision.led = LedHint::CalibrationOpenPrompt;
+                    }
+                    CalibrationPhase::Open => {
+                        self.state = SetupState::CalibratingOpen;
+                        decision.state = self.state;
+                    }
+                }
+                decision
+            }
+            SetupEvent::CalibrationRejected(phase) => self.retry_calibration(phase),
             SetupEvent::CalibrationStored => {
                 self.state = SetupState::Ready;
                 self.discovery_deadline_ms = None;
@@ -202,18 +256,54 @@ impl SetupController {
     }
 
     fn request_calibration(&mut self) -> SetupDecision {
-        if self.last_window_state == WindowState::Closed {
-            self.state = SetupState::Calibrating;
+        self.retry_calibration(CalibrationPhase::Closed)
+    }
+
+    fn retry_calibration(&mut self, phase: CalibrationPhase) -> SetupDecision {
+        if self.last_window_state == Self::phase_window_state(phase) {
+            self.state = Self::phase_calibrating_state(phase);
             let mut decision = SetupDecision::quiet(self.state);
-            decision.led = LedHint::CalibrationConfirm;
-            decision.should_capture_calibration = true;
+            decision.led = Self::phase_led_hint(phase);
+            decision.calibration_phase = Some(phase);
             return decision;
         }
 
-        self.state = SetupState::WaitingForClosedCalibration;
+        self.state = Self::phase_waiting_state(phase);
         let mut decision = SetupDecision::quiet(self.state);
-        decision.led = LedHint::CalibrationConfirm;
+        decision.led = Self::phase_led_hint(phase);
         decision
+    }
+
+    const fn phase_window_state(phase: CalibrationPhase) -> WindowState {
+        match phase {
+            CalibrationPhase::Closed => WindowState::Closed,
+            CalibrationPhase::Tilt => WindowState::Tilt,
+            CalibrationPhase::Open => WindowState::Open,
+        }
+    }
+
+    const fn phase_waiting_state(phase: CalibrationPhase) -> SetupState {
+        match phase {
+            CalibrationPhase::Closed => SetupState::WaitingForClosedCalibration,
+            CalibrationPhase::Tilt => SetupState::WaitingForTiltCalibration,
+            CalibrationPhase::Open => SetupState::WaitingForOpenCalibration,
+        }
+    }
+
+    const fn phase_calibrating_state(phase: CalibrationPhase) -> SetupState {
+        match phase {
+            CalibrationPhase::Closed => SetupState::CalibratingClosed,
+            CalibrationPhase::Tilt => SetupState::CalibratingTilt,
+            CalibrationPhase::Open => SetupState::CalibratingOpen,
+        }
+    }
+
+    const fn phase_led_hint(phase: CalibrationPhase) -> LedHint {
+        match phase {
+            CalibrationPhase::Closed => LedHint::CalibrationClosedPrompt,
+            CalibrationPhase::Tilt => LedHint::CalibrationTiltPrompt,
+            CalibrationPhase::Open => LedHint::CalibrationOpenPrompt,
+        }
     }
 }
 
@@ -232,7 +322,11 @@ impl SetupState {
         matches!(
             self,
             SetupState::WaitingForClosedCalibration
-                | SetupState::Calibrating
+                | SetupState::CalibratingClosed
+                | SetupState::WaitingForTiltCalibration
+                | SetupState::CalibratingTilt
+                | SetupState::WaitingForOpenCalibration
+                | SetupState::CalibratingOpen
                 | SetupState::NeedsRecalibration
         )
     }
@@ -420,12 +514,12 @@ mod tests {
 
         let waiting = setup.apply(SetupEvent::MemsGesture(MemsGesture::ConfirmMount), 200);
         assert_eq!(setup.state(), SetupState::WaitingForClosedCalibration);
-        assert!(!waiting.should_capture_calibration);
+        assert_eq!(waiting.calibration_phase, None);
 
         let capture = setup.apply(SetupEvent::WindowState(WindowState::Closed), 300);
-        assert_eq!(setup.state(), SetupState::Calibrating);
-        assert!(capture.should_capture_calibration);
-        assert_eq!(capture.led, LedHint::CalibrationConfirm);
+        assert_eq!(setup.state(), SetupState::CalibratingClosed);
+        assert_eq!(capture.calibration_phase, Some(CalibrationPhase::Closed));
+        assert_eq!(capture.led, LedHint::CalibrationClosedPrompt);
     }
 
     #[test]
@@ -439,11 +533,65 @@ mod tests {
         );
         let _ = setup.apply(SetupEvent::WindowState(WindowState::Closed), 100);
         let _ = setup.apply(SetupEvent::MagnetGesture(Gesture::Calibrate), 200);
+        let tilt = setup.apply(SetupEvent::CalibrationCaptured(CalibrationPhase::Closed), 250);
+        assert_eq!(setup.state(), SetupState::WaitingForTiltCalibration);
+        assert_eq!(tilt.led, LedHint::CalibrationTiltPrompt);
 
-        let decision = setup.apply(SetupEvent::CalibrationStored, 300);
+        let tilt_capture = setup.apply(SetupEvent::WindowState(WindowState::Tilt), 300);
+        assert_eq!(setup.state(), SetupState::CalibratingTilt);
+        assert_eq!(tilt_capture.calibration_phase, Some(CalibrationPhase::Tilt));
+
+        let open = setup.apply(SetupEvent::CalibrationCaptured(CalibrationPhase::Tilt), 350);
+        assert_eq!(setup.state(), SetupState::WaitingForOpenCalibration);
+        assert_eq!(open.led, LedHint::CalibrationOpenPrompt);
+
+        let open_capture = setup.apply(SetupEvent::WindowState(WindowState::Open), 400);
+        assert_eq!(setup.state(), SetupState::CalibratingOpen);
+        assert_eq!(open_capture.calibration_phase, Some(CalibrationPhase::Open));
+
+        let decision = setup.apply(SetupEvent::CalibrationStored, 450);
 
         assert_eq!(setup.state(), SetupState::Ready);
         assert_eq!(decision.led, LedHint::CalibrationOk);
+    }
+
+    #[test]
+    fn calibration_rejection_retries_current_phase_when_window_state_matches() {
+        let mut setup = SetupController::new();
+        let _ = setup.apply(
+            SetupEvent::Boot {
+                has_calibration: false,
+            },
+            0,
+        );
+        let _ = setup.apply(SetupEvent::WindowState(WindowState::Closed), 100);
+
+        let decision = setup.apply(SetupEvent::CalibrationRejected(CalibrationPhase::Closed), 150);
+
+        assert_eq!(setup.state(), SetupState::CalibratingClosed);
+        assert_eq!(decision.led, LedHint::CalibrationClosedPrompt);
+        assert_eq!(decision.calibration_phase, Some(CalibrationPhase::Closed));
+    }
+
+    #[test]
+    fn calibration_rejection_waits_for_phase_when_window_state_differs() {
+        let mut setup = SetupController::new();
+        let _ = setup.apply(
+            SetupEvent::Boot {
+                has_calibration: false,
+            },
+            0,
+        );
+        let _ = setup.apply(SetupEvent::WindowState(WindowState::Closed), 100);
+        let _ = setup.apply(SetupEvent::MagnetGesture(Gesture::Calibrate), 200);
+        let _ = setup.apply(SetupEvent::CalibrationCaptured(CalibrationPhase::Closed), 250);
+        let _ = setup.apply(SetupEvent::WindowState(WindowState::Open), 300);
+
+        let decision = setup.apply(SetupEvent::CalibrationRejected(CalibrationPhase::Tilt), 350);
+
+        assert_eq!(setup.state(), SetupState::WaitingForTiltCalibration);
+        assert_eq!(decision.led, LedHint::CalibrationTiltPrompt);
+        assert_eq!(decision.calibration_phase, None);
     }
 
     #[test]
@@ -503,7 +651,11 @@ mod tests {
     #[test]
     fn calibration_related_states_require_follow_up() {
         assert!(SetupState::WaitingForClosedCalibration.calibration_required());
-        assert!(SetupState::Calibrating.calibration_required());
+        assert!(SetupState::CalibratingClosed.calibration_required());
+        assert!(SetupState::WaitingForTiltCalibration.calibration_required());
+        assert!(SetupState::CalibratingTilt.calibration_required());
+        assert!(SetupState::WaitingForOpenCalibration.calibration_required());
+        assert!(SetupState::CalibratingOpen.calibration_required());
         assert!(SetupState::NeedsRecalibration.calibration_required());
         assert!(!SetupState::Ready.calibration_required());
     }

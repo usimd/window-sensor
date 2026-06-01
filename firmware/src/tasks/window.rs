@@ -18,9 +18,9 @@ use crate::SharedI2cBus;
 use crate::{SETUP_EVENT, STATE_CHANGED, SettingsFlash, WINDOW_CALIBRATION_REQUEST};
 use window_sensor::classifier::{self, WindowState};
 use window_sensor::gesture::{Gesture, GestureDetector};
-use window_sensor::setup::SetupEvent;
+use window_sensor::setup::{CalibrationPhase, SetupEvent};
 use window_sensor::settings::{SocSettings, load_soc_settings, save_soc_settings};
-use window_sensor::window_tuning;
+use window_sensor::window_tuning::{self, WindowCalibration};
 
 use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
 use embassy_time::Delay;
@@ -64,9 +64,10 @@ pub async fn window_task(
     let mut current_state = WindowState::Closed;
     let mut gestures = GestureDetector::new();
     let mut stored = load_settings(settings_flash);
-    let mut calibrated_closed_baseline_mt = stored.window_closed_baseline_mt();
-    let mut wake_threshold_mt = window_tuning::wake_threshold_mt(calibrated_closed_baseline_mt);
-    let mut closed_threshold_mt = window_tuning::closed_threshold_mt(calibrated_closed_baseline_mt);
+    let mut calibration = stored.window_calibration();
+    let mut pending_calibration = calibration;
+    let mut wake_threshold_mt = window_tuning::wake_threshold_mt(calibration);
+    let mut closed_threshold_mt = window_tuning::closed_threshold_mt(calibration);
 
     // Initial configuration: wake-and-sleep with threshold
     match configure_tmag_wake_and_sleep(&mut tmag, wake_threshold_mt) {
@@ -94,36 +95,88 @@ pub async fn window_task(
         )
         .await
         {
-            Either::First(_) => true,
-            Either::Second(_) => false,
+            Either::First(phase) => Some(phase),
+            Either::Second(_) => None,
         };
 
-        if requested_calibration {
-            match capture_closed_baseline_mt(&mut tmag).await {
-                Ok(closed_baseline_mt) if window_tuning::is_valid_closed_baseline_mt(closed_baseline_mt) => {
-                    stored.window_calibrated = true;
-                    stored.window_closed_baseline_mt_x10 = (closed_baseline_mt * 10.0) as u16;
-                    persist_settings(settings_flash, stored);
-                    calibrated_closed_baseline_mt = Some(closed_baseline_mt);
-                    wake_threshold_mt = window_tuning::wake_threshold_mt(calibrated_closed_baseline_mt);
-                    closed_threshold_mt =
-                        window_tuning::closed_threshold_mt(calibrated_closed_baseline_mt);
-                    let _ = configure_tmag_wake_and_sleep(&mut tmag, wake_threshold_mt);
-                    info!(
-                        "[WINDOW] Calibration stored baseline={}mT wake_thr={}mT closed_thr={}mT",
-                        closed_baseline_mt as u32,
-                        wake_threshold_mt as u32,
-                        closed_threshold_mt as u32,
-                    );
-                    SETUP_EVENT.signal(SetupEvent::CalibrationStored);
+        if let Some(phase) = requested_calibration {
+            match capture_baseline_mt(&mut tmag).await {
+                Ok(Some(baseline_mt)) => {
+                    match phase {
+                        CalibrationPhase::Closed => {
+                            if window_tuning::is_valid_closed_baseline_mt(baseline_mt) {
+                                let mut next = pending_calibration.unwrap_or(WindowCalibration {
+                                    closed_mt: baseline_mt,
+                                    tilt_mt: baseline_mt / 2.0,
+                                    open_mt: 0.0,
+                                });
+                                next.closed_mt = baseline_mt;
+                                pending_calibration = Some(next);
+                                info!("[WINDOW] Captured CLOSED baseline={}mT", baseline_mt as u32);
+                                SETUP_EVENT.signal(SetupEvent::CalibrationCaptured(phase));
+                            } else {
+                                warn!("[WINDOW] Rejected CLOSED baseline={}mT", baseline_mt as u32);
+                                SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                            }
+                        }
+                        CalibrationPhase::Tilt => {
+                            if let Some(mut next) = pending_calibration {
+                                next.tilt_mt = baseline_mt;
+                                pending_calibration = Some(next);
+                                info!("[WINDOW] Captured TILT baseline={}mT", baseline_mt as u32);
+                                SETUP_EVENT.signal(SetupEvent::CalibrationCaptured(phase));
+                            } else {
+                                warn!("[WINDOW] Ignored TILT capture without CLOSED baseline");
+                                SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                            }
+                        }
+                        CalibrationPhase::Open => {
+                            if let Some(mut next) = pending_calibration {
+                                next.open_mt = baseline_mt;
+                                if window_tuning::is_valid_window_calibration(next) {
+                                    stored.window_calibrated = true;
+                                    stored.window_closed_baseline_mt_x10 = (next.closed_mt * 10.0) as u16;
+                                    stored.window_tilt_baseline_mt_x10 = (next.tilt_mt * 10.0) as u16;
+                                    stored.window_open_baseline_mt_x10 = (next.open_mt * 10.0) as u16;
+                                    persist_settings(settings_flash, stored);
+                                    calibration = Some(next);
+                                    pending_calibration = calibration;
+                                    wake_threshold_mt = window_tuning::wake_threshold_mt(calibration);
+                                    closed_threshold_mt = window_tuning::closed_threshold_mt(calibration);
+                                    let _ = configure_tmag_wake_and_sleep(&mut tmag, wake_threshold_mt);
+                                    info!(
+                                        "[WINDOW] Calibration stored closed={}mT tilt={}mT open={}mT wake_thr={}mT closed_thr={}mT",
+                                        next.closed_mt as u32,
+                                        next.tilt_mt as u32,
+                                        next.open_mt as u32,
+                                        wake_threshold_mt as u32,
+                                        closed_threshold_mt as u32,
+                                    );
+                                    SETUP_EVENT.signal(SetupEvent::CalibrationStored);
+                                } else {
+                                    warn!(
+                                        "[WINDOW] Rejected calibration closed={}mT tilt={}mT open={}mT",
+                                        next.closed_mt as u32,
+                                        next.tilt_mt as u32,
+                                        next.open_mt as u32,
+                                    );
+                                    SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                                }
+                            } else {
+                                warn!("[WINDOW] Ignored OPEN capture without prior phases");
+                                SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                            }
+                        }
+                    }
                 }
-                Ok(closed_baseline_mt) => {
-                    warn!(
-                        "[WINDOW] Calibration rejected baseline={}mT outside valid range",
-                        closed_baseline_mt as u32,
-                    );
+                Ok(None) => {
+                    warn!("[WINDOW] Calibration {:?} did not settle", phase);
+                    SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
                 }
-                Err(_) => warn!("[WINDOW] Calibration capture failed"),
+                Err(_) => {
+                    warn!("[WINDOW] Calibration capture failed");
+                    SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                }
             }
             continue;
         }
@@ -224,9 +277,9 @@ pub async fn window_task(
     }
 }
 
-async fn capture_closed_baseline_mt<I2C, D>(
+async fn capture_baseline_mt<I2C, D>(
     tmag: &mut Tmag5273<I2C, tmag5273::Configured, D>,
-) -> Result<f32, tmag5273::Error<I2C::Error>>
+) -> Result<Option<f32>, tmag5273::Error<I2C::Error>>
 where
     I2C: embedded_hal::i2c::I2c,
     D: embedded_hal::delay::DelayNs,
@@ -234,16 +287,48 @@ where
     tmag.set_mode(OperatingMode::ContinuousMeasure)?;
     Timer::after_millis(10).await;
 
+    for _ in 0..window_tuning::CALIBRATION_MAX_ATTEMPTS {
+        let stats = capture_baseline_window_mt(tmag).await?;
+        if window_tuning::is_stable_calibration_window(stats.min_mt, stats.max_mt) {
+            return Ok(Some(stats.average_mt));
+        }
+    }
+
+    Ok(None)
+}
+
+struct CalibrationWindowStats {
+    average_mt: f32,
+    min_mt: f32,
+    max_mt: f32,
+}
+
+async fn capture_baseline_window_mt<I2C, D>(
+    tmag: &mut Tmag5273<I2C, tmag5273::Configured, D>,
+) -> Result<CalibrationWindowStats, tmag5273::Error<I2C::Error>>
+where
+    I2C: embedded_hal::i2c::I2c,
+    D: embedded_hal::delay::DelayNs,
+{
     let mut total_mt = 0.0_f32;
     let mut samples = 0usize;
+    let mut min_mt = f32::INFINITY;
+    let mut max_mt = f32::NEG_INFINITY;
+
     for _ in 0..window_tuning::CALIBRATION_SAMPLES {
-        let sample = read_mag_sample(tmag)?;
-        total_mt += sample.magnitude_mt();
+        let magnitude_mt = read_mag_sample(tmag)?.magnitude_mt();
+        total_mt += magnitude_mt;
+        min_mt = min_mt.min(magnitude_mt);
+        max_mt = max_mt.max(magnitude_mt);
         samples += 1;
         Timer::after_millis(window_tuning::CALIBRATION_INTERVAL_MS).await;
     }
 
-    Ok(total_mt / samples as f32)
+    Ok(CalibrationWindowStats {
+        average_mt: total_mt / samples as f32,
+        min_mt,
+        max_mt,
+    })
 }
 
 fn load_settings(settings_flash: &'static SettingsFlash) -> SocSettings {

@@ -108,8 +108,15 @@ pub static SETUP_STATE: Mutex<CriticalSectionRawMutex, RefCell<window_sensor::se
 pub static SETUP_CHANGED: Signal<CriticalSectionRawMutex, window_sensor::setup::SetupDecision> =
     Signal::new();
 
-/// Signal from setup_task → window_task to capture a closed-position calibration.
-pub static WINDOW_CALIBRATION_REQUEST: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+/// Signal from setup_task → window_task to capture the next calibration phase.
+pub static WINDOW_CALIBRATION_REQUEST: Signal<
+    CriticalSectionRawMutex,
+    window_sensor::setup::CalibrationPhase,
+> = Signal::new();
+
+/// Signal from setup_task → blue LED task with the current setup hint.
+pub static SETUP_LED_HINT: Signal<CriticalSectionRawMutex, window_sensor::setup::LedHint> =
+    Signal::new();
 
 /// Signal from MEMS task → future BLE task with BTHome button events.
 pub static BUTTON_EVENT: Signal<CriticalSectionRawMutex, window_sensor::bthome::ButtonEvent> =
@@ -317,6 +324,7 @@ async fn main(spawner: Spawner) {
     info!("[INIT] Spawning tasks...");
 
     spawner.spawn(unwrap!(tasks::setup::setup_task(has_window_calibration)));
+    spawner.spawn(unwrap!(tasks::setup::setup_led_task(led_blue)));
     spawner.spawn(unwrap!(tasks::window::window_task(i2c, hall_int, settings_flash)));
     spawner.spawn(unwrap!(tasks::mems::mems_task(
         i2c,
@@ -334,10 +342,8 @@ async fn main(spawner: Spawner) {
 
     info!("[INIT] System running — idle");
 
-    // Main task: heartbeat LED blink every 60s (debug visibility, removed in production)
     loop {
         Timer::after_secs(60).await;
-        led_blue.flash_ms(5).await;
         trace!("[HEARTBEAT] alive");
     }
 }

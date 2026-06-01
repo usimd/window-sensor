@@ -1,9 +1,10 @@
 use crate::partition::SETTINGS_REGION;
+use crate::window_tuning::WindowCalibration;
 use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 
 pub const SOC_SETTINGS_MAGIC: u32 = 0x534f_4331;
 pub const SOC_SETTINGS_VERSION: u16 = 1;
-pub const SOC_SETTINGS_LEN: usize = 20;
+pub const SOC_SETTINGS_LEN: usize = 24;
 pub const SOC_SETTINGS_OFFSET: u32 = SETTINGS_REGION.start;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -14,6 +15,8 @@ pub struct SocSettings {
     pub best_resistance_mohm: u32,
     pub window_calibrated: bool,
     pub window_closed_baseline_mt_x10: u16,
+    pub window_tilt_baseline_mt_x10: u16,
+    pub window_open_baseline_mt_x10: u16,
 }
 
 impl Default for SocSettings {
@@ -24,14 +27,19 @@ impl Default for SocSettings {
             best_resistance_mohm: 0,
             window_calibrated: false,
             window_closed_baseline_mt_x10: 0,
+            window_tilt_baseline_mt_x10: 0,
+            window_open_baseline_mt_x10: 0,
         }
     }
 }
 
 impl SocSettings {
-    pub fn window_closed_baseline_mt(self) -> Option<f32> {
-        self.window_calibrated
-            .then_some(self.window_closed_baseline_mt_x10 as f32 / 10.0)
+    pub fn window_calibration(self) -> Option<WindowCalibration> {
+        self.window_calibrated.then_some(WindowCalibration {
+            closed_mt: self.window_closed_baseline_mt_x10 as f32 / 10.0,
+            tilt_mt: self.window_tilt_baseline_mt_x10 as f32 / 10.0,
+            open_mt: self.window_open_baseline_mt_x10 as f32 / 10.0,
+        })
     }
 }
 
@@ -43,6 +51,8 @@ impl SocSettings {
         let flags = (self.autocal_complete as u8) | ((self.window_calibrated as u8) << 1);
         let resistance = self.best_resistance_mohm.to_le_bytes();
         let closed_baseline = self.window_closed_baseline_mt_x10.to_le_bytes();
+        let tilt_baseline = self.window_tilt_baseline_mt_x10.to_le_bytes();
+        let open_baseline = self.window_open_baseline_mt_x10.to_le_bytes();
         let checksum = checksum(self).to_le_bytes();
 
         bytes[0] = magic[0];
@@ -59,10 +69,14 @@ impl SocSettings {
         bytes[11] = resistance[3];
         bytes[12] = closed_baseline[0];
         bytes[13] = closed_baseline[1];
-        bytes[16] = checksum[0];
-        bytes[17] = checksum[1];
-        bytes[18] = checksum[2];
-        bytes[19] = checksum[3];
+        bytes[14] = tilt_baseline[0];
+        bytes[15] = tilt_baseline[1];
+        bytes[16] = open_baseline[0];
+        bytes[17] = open_baseline[1];
+        bytes[20] = checksum[0];
+        bytes[21] = checksum[1];
+        bytes[22] = checksum[2];
+        bytes[23] = checksum[3];
         bytes
     }
 
@@ -83,9 +97,11 @@ impl SocSettings {
             last_battery_percent: bytes[7],
             best_resistance_mohm: u32::from_le_bytes(bytes[8..12].try_into().ok()?),
             window_closed_baseline_mt_x10: u16::from_le_bytes(bytes[12..14].try_into().ok()?),
+            window_tilt_baseline_mt_x10: u16::from_le_bytes(bytes[14..16].try_into().ok()?),
+            window_open_baseline_mt_x10: u16::from_le_bytes(bytes[16..18].try_into().ok()?),
         };
 
-        let stored_checksum = u32::from_le_bytes(bytes[16..20].try_into().ok()?);
+        let stored_checksum = u32::from_le_bytes(bytes[20..24].try_into().ok()?);
         (stored_checksum == checksum(settings)).then_some(settings)
     }
 }
@@ -96,6 +112,8 @@ pub fn checksum(settings: SocSettings) -> u32 {
         ^ u32::from(settings.last_battery_percent)
         ^ settings.best_resistance_mohm.rotate_left(7)
         ^ u32::from(settings.window_closed_baseline_mt_x10).rotate_left(11)
+        ^ u32::from(settings.window_tilt_baseline_mt_x10).rotate_left(13)
+        ^ u32::from(settings.window_open_baseline_mt_x10).rotate_left(17)
         ^ SOC_SETTINGS_MAGIC
         ^ u32::from(SOC_SETTINGS_VERSION)
 }
@@ -208,6 +226,8 @@ mod tests {
             best_resistance_mohm: 12_345,
             window_calibrated: true,
             window_closed_baseline_mt_x10: 512,
+            window_tilt_baseline_mt_x10: 201,
+            window_open_baseline_mt_x10: 43,
         };
 
         assert_eq!(SocSettings::decode(&settings.encode()), Some(settings));
@@ -229,9 +249,11 @@ mod tests {
             best_resistance_mohm: 9_000,
             window_calibrated: true,
             window_closed_baseline_mt_x10: 480,
+            window_tilt_baseline_mt_x10: 240,
+            window_open_baseline_mt_x10: 55,
         }
         .encode();
-        bytes[16] ^= 0x01;
+        bytes[20] ^= 0x01;
 
         assert_eq!(SocSettings::decode(&bytes), None);
     }
@@ -245,6 +267,8 @@ mod tests {
             best_resistance_mohm: 8_765,
             window_calibrated: true,
             window_closed_baseline_mt_x10: 505,
+            window_tilt_baseline_mt_x10: 215,
+            window_open_baseline_mt_x10: 48,
         };
 
         save_soc_settings(&mut flash, settings).unwrap();

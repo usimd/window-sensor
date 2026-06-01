@@ -24,8 +24,22 @@ jobs:
       - name: Install cargo-binutils
         run: cargo install cargo-binutils --locked --quiet
 
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked --quiet
+
       - name: Lint, test, build
         run: just ci
+
+      - name: Test with coverage
+        run: |
+          cd firmware
+          cargo llvm-cov --lib --target x86_64-unknown-linux-gnu --lcov --output-path ../lcov.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
 
       - name: Binary size
         run: just size | tee /tmp/size.txt
