@@ -45,8 +45,8 @@ jobs:
             imgtool keygen -k firmware/keys/signing-key.pem -t ed25519
           fi
 
-          just sign version="0.1.0-ci+$(git rev-parse --short HEAD)"
-          just sign-hex version="0.1.0-ci+$(git rev-parse --short HEAD)"
+          just version="0.1.0-ci+$(git rev-parse --short HEAD)" sign
+          just version="0.1.0-ci+$(git rev-parse --short HEAD)" sign-hex
           rm -f firmware/keys/signing-key.pem
 
       - name: Upload firmware ELF
@@ -89,31 +89,31 @@ jobs:
 
       - name: ERC (Electrical Rules Check)
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch erc --exit-code-violations window-sensor.kicad_sch
 
       - name: DRC (Design Rules Check)
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli pcb drc --exit-code-violations window-sensor.kicad_pcb
 
       - name: Export schematic PDF
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch export pdf -o sch.pdf window-sensor.kicad_sch
 
       - name: Export BOM
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch export bom -o bom.csv window-sensor.kicad_sch
 
       - name: Export Gerbers
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 sh -c "mkdir -p gbr && kicad-cli pcb export gerbers -o gbr/ window-sensor.kicad_pcb && kicad-cli pcb export drill -o gbr/ window-sensor.kicad_pcb"
 
