@@ -277,7 +277,10 @@ mod tests {
         assert_eq!(detector.record(IdsSignal::Tap, 0), None);
         assert_eq!(detector.record(IdsSignal::Tap, 300), None);
         assert_eq!(detector.record(IdsSignal::Tap, 600), None);
-        assert_eq!(detector.record(IdsSignal::Tap, 900), Some(IdsTrigger::TapBurst));
+        assert_eq!(
+            detector.record(IdsSignal::Tap, 900),
+            Some(IdsTrigger::TapBurst)
+        );
     }
 
     #[test]
