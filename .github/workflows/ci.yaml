@@ -19,21 +19,13 @@ jobs:
           workspaces: firmware
 
       - name: Install just
-        run: cargo install just --locked --quiet
-
-      - name: Install cargo-binutils
-        run: cargo install cargo-binutils --locked --quiet
-
-      - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --locked --quiet
+        run: cargo install just cargo-binutils cargo-llvm-cov --locked --quiet
 
       - name: Lint, test, build
         run: just ci
 
-      - name: Test with coverage
-        run: |
-          cd firmware
-          cargo llvm-cov --lib --target x86_64-unknown-linux-gnu --lcov --output-path ../lcov.info
+      - name: Coverage
+        run: just test-cov
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

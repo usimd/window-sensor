@@ -46,17 +46,21 @@ fmt-check:
 
 # === TESTS (host-side, no hardware) ===
 
-# Run all host-side unit tests
+# Run all host-side tests (unit + integration)
 test:
-    cd firmware && cargo test --lib --target x86_64-unknown-linux-gnu
+    cd firmware && cargo test --target x86_64-unknown-linux-gnu
 
-# Run host-side unit tests with the heater-assisted path enabled
+# Run tests with the heater-assisted path enabled
 test-soc-heater:
-    cd firmware && cargo test --lib --target x86_64-unknown-linux-gnu --features soc-heater
+    cd firmware && cargo test --target x86_64-unknown-linux-gnu --features soc-heater
+
+# Run tests with coverage (outputs lcov.info at repo root)
+test-cov:
+    cd firmware && cargo llvm-cov --target x86_64-unknown-linux-gnu --lcov --output-path ../lcov.info
 
 # Run tests with output (for debugging test failures)
 test-verbose:
-    cd firmware && cargo test --lib --target x86_64-unknown-linux-gnu -- --nocapture
+    cd firmware && cargo test --target x86_64-unknown-linux-gnu -- --nocapture
 
 # === FLASH + RUN (requires STLINK connected) ===
 
