@@ -50,9 +50,10 @@ pub const MIN_CLOSED_THRESHOLD_MT: f32 = 5.0;
 
 pub fn wake_threshold_mt(calibration: Option<WindowCalibration>) -> f32 {
     match calibration {
-        Some(calibration) => {
-            clamp_min(midpoint(calibration.closed_mt, calibration.tilt_mt), MIN_INT_THRESHOLD_MT)
-        }
+        Some(calibration) => clamp_min(
+            midpoint(calibration.closed_mt, calibration.tilt_mt),
+            MIN_INT_THRESHOLD_MT,
+        ),
         None => clamp_min(
             DEFAULT_CLOSED_BASELINE_MT - INT_TRIGGER_MARGIN_MT,
             MIN_INT_THRESHOLD_MT,
@@ -63,7 +64,8 @@ pub fn wake_threshold_mt(calibration: Option<WindowCalibration>) -> f32 {
 pub fn closed_threshold_mt(calibration: Option<WindowCalibration>) -> f32 {
     match calibration {
         Some(calibration) => clamp_min(
-            calibration.closed_mt - CLOSED_RETURN_MARGIN_MT.min((calibration.closed_mt - calibration.tilt_mt) / 2.0),
+            calibration.closed_mt
+                - CLOSED_RETURN_MARGIN_MT.min((calibration.closed_mt - calibration.tilt_mt) / 2.0),
             MIN_CLOSED_THRESHOLD_MT,
         ),
         None => clamp_min(

@@ -183,7 +183,8 @@ impl SetupController {
                     return decision;
                 }
 
-                if self.state == SetupState::WaitingForTiltCalibration && state == WindowState::Tilt {
+                if self.state == SetupState::WaitingForTiltCalibration && state == WindowState::Tilt
+                {
                     self.state = SetupState::CalibratingTilt;
                     let mut decision = SetupDecision::quiet(self.state);
                     decision.led = LedHint::CalibrationTiltPrompt;
@@ -191,7 +192,8 @@ impl SetupController {
                     return decision;
                 }
 
-                if self.state == SetupState::WaitingForOpenCalibration && state == WindowState::Open {
+                if self.state == SetupState::WaitingForOpenCalibration && state == WindowState::Open
+                {
                     self.state = SetupState::CalibratingOpen;
                     let mut decision = SetupDecision::quiet(self.state);
                     decision.led = LedHint::CalibrationOpenPrompt;
@@ -533,7 +535,10 @@ mod tests {
         );
         let _ = setup.apply(SetupEvent::WindowState(WindowState::Closed), 100);
         let _ = setup.apply(SetupEvent::MagnetGesture(Gesture::Calibrate), 200);
-        let tilt = setup.apply(SetupEvent::CalibrationCaptured(CalibrationPhase::Closed), 250);
+        let tilt = setup.apply(
+            SetupEvent::CalibrationCaptured(CalibrationPhase::Closed),
+            250,
+        );
         assert_eq!(setup.state(), SetupState::WaitingForTiltCalibration);
         assert_eq!(tilt.led, LedHint::CalibrationTiltPrompt);
 
@@ -566,7 +571,10 @@ mod tests {
         );
         let _ = setup.apply(SetupEvent::WindowState(WindowState::Closed), 100);
 
-        let decision = setup.apply(SetupEvent::CalibrationRejected(CalibrationPhase::Closed), 150);
+        let decision = setup.apply(
+            SetupEvent::CalibrationRejected(CalibrationPhase::Closed),
+            150,
+        );
 
         assert_eq!(setup.state(), SetupState::CalibratingClosed);
         assert_eq!(decision.led, LedHint::CalibrationClosedPrompt);
@@ -584,7 +592,10 @@ mod tests {
         );
         let _ = setup.apply(SetupEvent::WindowState(WindowState::Closed), 100);
         let _ = setup.apply(SetupEvent::MagnetGesture(Gesture::Calibrate), 200);
-        let _ = setup.apply(SetupEvent::CalibrationCaptured(CalibrationPhase::Closed), 250);
+        let _ = setup.apply(
+            SetupEvent::CalibrationCaptured(CalibrationPhase::Closed),
+            250,
+        );
         let _ = setup.apply(SetupEvent::WindowState(WindowState::Open), 300);
 
         let decision = setup.apply(SetupEvent::CalibrationRejected(CalibrationPhase::Tilt), 350);
