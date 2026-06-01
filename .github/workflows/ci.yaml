@@ -24,9 +24,6 @@ jobs:
       - name: Lint, test, build
         run: just ci
 
-      - name: Coverage
-        run: just test-cov
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

@@ -106,8 +106,8 @@ rtt-attach:
 
 # === FULL CI LOOP (what the agent runs) ===
 
-# Full CI loop: lint → test → build (no hardware)
-ci: fmt-check clippy clippy-soc-heater test test-soc-heater build
+# Full CI loop: lint → test (with coverage) → build (no hardware)
+ci: fmt-check clippy clippy-soc-heater test-cov test-soc-heater build
     @echo "[CI] All checks passed"
 
 # Agent loop with hardware: build → flash → validate RTT → validate BLE
