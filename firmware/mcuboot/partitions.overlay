@@ -1,5 +1,5 @@
 /*
- * MCUboot partition layout for window-sensor (nRF54L10, 1 MiB flash).
+ * MCUboot partition layout for window-sensor (nRF54L10, 1 MiB RRAM).
  * Must match firmware/src/partition.rs::mcuboot_default()
  *
  * Layout:
@@ -7,7 +7,7 @@
  *   0x00010000 - 0x0006FFFF : Primary slot (384 KiB)
  *   0x00070000 - 0x000CFFFF : Secondary slot (384 KiB)
  *   0x000D0000 - 0x000DFFFF : Scratch (64 KiB)
- *   0x000E0000 - 0x000FFFFF : Settings / NVS (128 KiB)
+ *   0x000E0000 - 0x000F7FFF : Settings / NVS (96 KiB)
  */
 
 / {
@@ -49,7 +49,7 @@
 
 		storage_partition: partition@e0000 {
 			label = "storage";
-			reg = <0x000e0000 0x20000>;
+			reg = <0x000e0000 0x18000>;
 		};
 	};
 };
