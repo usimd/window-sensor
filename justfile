@@ -158,8 +158,8 @@ gen-key:
 
 # Build + convert ELF to raw binary and Intel HEX
 objcopy: build
-    rust-objcopy -O binary {{elf}} {{bin}}
-    rust-objcopy -O ihex {{elf}} {{hex}}
+    rust-objcopy -O binary "{{justfile_directory()}}/{{elf}}" "{{justfile_directory()}}/{{bin}}"
+    rust-objcopy -O ihex "{{justfile_directory()}}/{{elf}}" "{{justfile_directory()}}/{{hex}}"
 
 # Sign the firmware for OTA delivery (produces .bin for SMP upload)
 sign: objcopy

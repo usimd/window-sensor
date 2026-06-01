@@ -89,31 +89,31 @@ jobs:
 
       - name: ERC (Electrical Rules Check)
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+          docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch erc --exit-code-violations window-sensor.kicad_sch
 
       - name: DRC (Design Rules Check)
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+          docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli pcb drc --exit-code-violations window-sensor.kicad_pcb
 
       - name: Export schematic PDF
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+          docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch export pdf -o sch.pdf window-sensor.kicad_sch
 
       - name: Export BOM
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+          docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 kicad-cli sch export bom -o bom.csv window-sensor.kicad_sch
 
       - name: Export Gerbers
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+          docker run --rm --user 0:0 \
             -v "${{ github.workspace }}:/work" -w /work \
             kicad/kicad:10.0 sh -c "mkdir -p gbr && kicad-cli pcb export gerbers -o gbr/ window-sensor.kicad_pcb && kicad-cli pcb export drill -o gbr/ window-sensor.kicad_pcb"
 

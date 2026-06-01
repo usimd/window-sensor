@@ -27,6 +27,12 @@ jobs:
         run: |
           pip install west imgtool
 
+      - name: Install Zephyr SDK
+        run: |
+          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64_minimal.tar.xz
+          tar xf zephyr-sdk-0.17.0_linux-x86_64_minimal.tar.xz -C /opt
+          /opt/zephyr-sdk-0.17.0/setup.sh -t arm-zephyr-eabi -c
+
       - name: Cache nRF Connect SDK workspace
         id: cache-ncs
         uses: actions/cache@v4
@@ -128,10 +134,9 @@ jobs:
 
       - name: Convert ELF to binary and HEX
         run: |
-          cargo objcopy --release -- -O binary \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.bin
-          cargo objcopy --release -- -O ihex \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.hex
+          ELF=target/thumbv8m.main-none-eabihf/release/window-sensor
+          rust-objcopy -O binary "$ELF" "${ELF}.bin"
+          rust-objcopy -O ihex "$ELF" "${ELF}.hex"
 
       - name: Sign firmware
         env:
