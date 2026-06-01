@@ -54,31 +54,31 @@ jobs:
           rm -f firmware/keys/signing-key.pem
 
       - name: Upload firmware ELF
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-elf
           path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor
 
       - name: Upload partition manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-partition-manifest
           path: firmware/target/thumbv8m.main-none-eabihf/release/partition_manifest.json
 
       - name: Upload size report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-size
           path: /tmp/size.txt
 
       - name: Upload OTA image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-ota
           path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
 
       - name: Upload signed HEX
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-signed-hex
           path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
@@ -126,7 +126,7 @@ jobs:
             kicad/kicad:10.0 sh -c "mkdir -p gbr && kicad-cli pcb export gerbers -o gbr/ window-sensor.kicad_pcb && kicad-cli pcb export drill -o gbr/ window-sensor.kicad_pcb"
 
       - name: Upload PCB artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pcb
           path: |
@@ -136,7 +136,7 @@ jobs:
 
       - name: Upload ERC/DRC reports on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pcb-reports
           path: "*.rpt"
