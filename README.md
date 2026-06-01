@@ -1,6 +1,7 @@
 # Window Sensor
 
-![GitHub License](https://img.shields.io/github/license/usimd/window-sensor)
+![License HW: CERN-OHL-W-2.0](https://img.shields.io/badge/license_HW-CERN--OHL--W--2.0-blue)
+![License FW: Apache-2.0](https://img.shields.io/badge/license_FW-Apache--2.0-blue)
 [![CI](https://github.com/usimd/window-sensor/actions/workflows/ci.yaml/badge.svg)](https://github.com/usimd/window-sensor/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/usimd/window-sensor/branch/main/graph/badge.svg)](https://codecov.io/gh/usimd/window-sensor)
 [![Upload to AISLER](https://img.shields.io/badge/Upload_to_-AISLER-ff8000)](https://aisler.net/p/new?url=https://raw.githubusercontent.com/usimd/window-sensor/refs/heads/main/window-sensor.kicad_pcb&ref=github)
