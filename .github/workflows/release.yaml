@@ -8,7 +8,7 @@ on:
       ncs_version:
         description: 'nRF Connect SDK version (e.g., v3.3.0)'
         required: false
-        default: 'v3.3.0'
+        default: 'v3.3.0' # renovate: datasource=github-releases depName=nrfconnect/sdk-nrf
 
 env:
   CHIP: nRF54L10_xxAA
