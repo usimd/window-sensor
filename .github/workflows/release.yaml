@@ -15,7 +15,7 @@ env:
   SLOT_SIZE: "0x60000"
   HEADER_SIZE: "0x200"
   NCS_VERSION: ${{ inputs.ncs_version || 'v3.3.0' }}
-  MCUBOOT_BOARD: "nrf54l10dk/nrf54l10/cpuapp"
+  MCUBOOT_BOARD: "nrf54l15dk/nrf54l10/cpuapp"
 
 jobs:
   build-mcuboot:

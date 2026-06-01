@@ -6,7 +6,7 @@
 #   NCS_VERSION    - nRF Connect SDK version tag (default: v2.9.0)
 #   SIGNING_KEY    - path to ed25519 signing key PEM (private or public)
 #   OUTPUT_HEX     - where to write the bootloader hex (default: firmware/mcuboot/mcuboot-nrf54l10.hex)
-#   BOARD          - Zephyr board target (default: nrf54l10dk/nrf54l10/cpuapp)
+#   BOARD          - Zephyr board target (default: nrf54l15dk/nrf54l10/cpuapp)
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ MCUBOOT_DIR="$REPO_ROOT/firmware/mcuboot"
 NCS_VERSION="${NCS_VERSION:-v3.3.0}"
 SIGNING_KEY="${SIGNING_KEY:-$REPO_ROOT/firmware/keys/signing-key.pem}"
 OUTPUT_HEX="${OUTPUT_HEX:-$MCUBOOT_DIR/mcuboot-nrf54l10.hex}"
-BOARD="${BOARD:-nrf54l10dk/nrf54l10/cpuapp}"
+BOARD="${BOARD:-nrf54l15dk/nrf54l10/cpuapp}"
 
 WEST_WORKSPACE="${WEST_WORKSPACE:-/tmp/ncs-mcuboot-workspace}"
 
