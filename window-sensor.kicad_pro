@@ -643,7 +643,7 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "",
+      "plot": "./gerbers_for_aisler",
       "pos_files": "",
       "specctra_dsn": "",
       "step": "window-sensor.step",

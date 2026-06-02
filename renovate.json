@@ -5,7 +5,6 @@
   "major": {
     "dependencyDashboardApproval": true
   },
-  "labels": ["test"],
   "packageRules": [
     {
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],

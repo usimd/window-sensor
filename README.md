@@ -54,3 +54,7 @@ just run
 ## License
 
 Dual-licensed: hardware under CERN-OHL-W-2.0, firmware under Apache-2.0. See [`LICENSE`](LICENSE).
+
+## AISLER discount
+
+In case you want to build this (or any other) project at AISLER, here's a 10€ discount code for you: `MakeInEurope-ZDCTN`.

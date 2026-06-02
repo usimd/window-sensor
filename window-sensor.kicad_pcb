@@ -10,7 +10,7 @@
 	(title_block
 		(title "nRF54 BLE window sensor")
 		(rev "2")
-		(comment 4 "AISLER Project ID: XQKAJRUI")
+		(comment 4 "AISLER Project ID: EEOZVLHN")
 	)
 	(layers
 		(0 "F.Cu" signal)
@@ -139,7 +139,7 @@
 		(capping no)
 		(filling no)
 		(pcbplotparams
-			(layerselection 0x00000000_00000000_55555555_5755f5ff)
+			(layerselection 0x00000000_00000000_55555555_575575ff)
 			(plot_on_all_layers_selection 0x00000000_00000000_00000000_00000000)
 			(disableapertmacros no)
 			(usegerberextensions no)
@@ -151,7 +151,7 @@
 			(svgprecision 6)
 			(plotframeref no)
 			(mode 1)
-			(useauxorigin no)
+			(useauxorigin yes)
 			(pdf_front_fp_property_popups yes)
 			(pdf_back_fp_property_popups yes)
 			(pdf_metadata yes)
