@@ -3,8 +3,8 @@
 
 chip := "nRF54L10_xxAA"
 target := "thumbv8m.main-none-eabihf"
-elf  := "firmware/target/{{target}}/release/window-sensor"
-manifest := "firmware/target/{{target}}/release/partition_manifest.json"
+elf := "firmware/target/" + target + "/release/window-sensor"
+manifest := "firmware/target/" + target + "/release/partition_manifest.json"
 
 # Default recipe: build + lint
 default: build clippy
@@ -149,11 +149,11 @@ bloat: build
 slot_size   := "0x60000"
 header_size := "0x200"
 signing_key := "firmware/keys/signing-key.pem"
-bin         := "firmware/target/{{target}}/release/window-sensor.bin"
-hex         := "firmware/target/{{target}}/release/window-sensor.hex"
-signed_bin  := "firmware/target/{{target}}/release/window-sensor-ota.bin"
-signed_hex  := "firmware/target/{{target}}/release/window-sensor-signed.hex"
-factory_hex := "firmware/target/{{target}}/release/window-sensor-factory.hex"
+bin := "firmware/target/" + target + "/release/window-sensor.bin"
+hex := "firmware/target/" + target + "/release/window-sensor.hex"
+signed_bin := "firmware/target/" + target + "/release/window-sensor-ota.bin"
+signed_hex := "firmware/target/" + target + "/release/window-sensor-signed.hex"
+factory_hex := "firmware/target/" + target + "/release/window-sensor-factory.hex"
 mcuboot_hex := "firmware/mcuboot/mcuboot-nrf54l10.hex"
 version     := "0.1.0"
 
