@@ -95,9 +95,6 @@ jobs:
   build-images:
     needs: build-mcuboot
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: firmware
     steps:
       - uses: actions/checkout@v6
 
@@ -113,7 +110,7 @@ jobs:
       - name: Install tools
         run: |
           pip install imgtool intelhex
-          cargo install cargo-binutils --locked --quiet
+          cargo install just cargo-binutils --locked --quiet
 
       - name: Download MCUboot hex
         uses: actions/download-artifact@v8
@@ -133,65 +130,35 @@ jobs:
           echo "Building version: $VER"
 
       - name: Build release
-        run: cargo build --release --features embedded-bin
-
-      - name: Convert ELF to binary and HEX
-        run: |
-          ELF=target/thumbv8m.main-none-eabihf/release/window-sensor
-          rust-objcopy -O binary "$ELF" "${ELF}.bin"
-          rust-objcopy -O ihex "$ELF" "${ELF}.hex"
+        run: just build
 
       - name: Sign firmware
         env:
           MCUBOOT_SIGNING_KEY: ${{ secrets.MCUBOOT_SIGNING_KEY }}
         run: |
+          mkdir -p firmware/keys
           if [[ -n "${MCUBOOT_SIGNING_KEY:-}" ]]; then
-            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > /tmp/signing-key.pem
-          elif [[ -f keys/signing-key.pem ]]; then
-            cp keys/signing-key.pem /tmp/signing-key.pem
+            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > firmware/keys/signing-key.pem
+          elif [[ -f firmware/keys/signing-key.pem ]]; then
+            echo "Using existing firmware/keys/signing-key.pem"
           else
             echo "::warning::No signing key — using ephemeral dev key"
-            imgtool keygen -k /tmp/signing-key.pem -t ed25519
+            imgtool keygen -k firmware/keys/signing-key.pem -t ed25519
           fi
 
-          imgtool sign \
-            --key /tmp/signing-key.pem \
-            --header-size ${{ env.HEADER_SIZE }} \
-            --align 4 \
-            --slot-size ${{ env.SLOT_SIZE }} \
-            --version "${{ steps.version.outputs.version }}" \
-            --pad-header \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.bin \
-            target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
+          just version="${{ steps.version.outputs.version }}" sign
+          just version="${{ steps.version.outputs.version }}" sign-hex
 
-          imgtool sign \
-            --key /tmp/signing-key.pem \
-            --header-size ${{ env.HEADER_SIZE }} \
-            --align 4 \
-            --slot-size ${{ env.SLOT_SIZE }} \
-            --version "${{ steps.version.outputs.version }}" \
-            --pad-header \
-            target/thumbv8m.main-none-eabihf/release/window-sensor.hex \
-            target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex
-
-          rm -f /tmp/signing-key.pem
+          rm -f firmware/keys/signing-key.pem
 
       - name: Create factory image (MCUboot + signed app)
-        run: |
-          python3 -c "
-          from intelhex import IntelHex
-          boot = IntelHex('mcuboot/mcuboot-nrf54l10.hex')
-          app = IntelHex('target/thumbv8m.main-none-eabihf/release/window-sensor-signed.hex')
-          boot.merge(app, overlap='error')
-          boot.write_hex_file('target/thumbv8m.main-none-eabihf/release/window-sensor-factory.hex')
-          print(f'Factory image: bootloader @ 0x{boot.minaddr():08X}, app @ 0x{app.minaddr():08X}')
-          "
+        run: just factory
 
       - name: Binary size report
         run: |
-          cargo size --release --features embedded-bin -- -A | tee size-report.txt
+          just size | tee firmware/size-report.txt
           echo "---"
-          OTA_SIZE=$(stat -c%s target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin)
+          OTA_SIZE=$(stat -c%s firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin)
           echo "OTA image size: $OTA_SIZE bytes"
           echo "Slot capacity:  393216 bytes (384 KiB)"
           echo "Utilization:    $(( OTA_SIZE * 100 / 393216 ))%"
