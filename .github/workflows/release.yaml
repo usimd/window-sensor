@@ -149,10 +149,12 @@ jobs:
           just version="${{ steps.version.outputs.version }}" sign
           just version="${{ steps.version.outputs.version }}" sign-hex
 
-          rm -f firmware/keys/signing-key.pem
-
       - name: Create factory image (MCUboot + signed app)
         run: just factory
+
+      - name: Cleanup signing key
+        if: always()
+        run: rm -f firmware/keys/signing-key.pem
 
       - name: Binary size report
         run: |
