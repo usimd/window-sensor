@@ -9,12 +9,17 @@ on:
         description: 'nRF Connect SDK version (e.g., v3.3.0)'
         required: false
         default: 'v3.3.0' # renovate: datasource=github-releases depName=nrfconnect/sdk-nrf
+      zephyr_sdk_version:
+        description: 'Zephyr SDK version (e.g., 0.17.0)'
+        required: false
+        default: '0.17.0' # renovate: datasource=github-releases depName=zephyrproject-rtos/sdk-ng
 
 env:
   CHIP: nRF54L10_xxAA
   SLOT_SIZE: "0x60000"
   HEADER_SIZE: "0x200"
   NCS_VERSION: ${{ inputs.ncs_version || 'v3.3.0' }}
+  ZEPHYR_SDK_VERSION: ${{ inputs.zephyr_sdk_version || '0.17.0' }}
   MCUBOOT_BOARD: "nrf54l15dk/nrf54l10/cpuapp"
 
 jobs:
@@ -23,33 +28,34 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install west and dependencies
+      - name: Install west and MCUboot tooling
         run: |
           pip install west imgtool pyelftools
 
+      - name: Cache Zephyr SDK
+        uses: actions/cache@v5
+        with:
+          path: /tmp/zephyr-sdk
+          key: zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}-arm-zephyr-eabi
+
       - name: Install Zephyr SDK
         run: |
-          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64_minimal.tar.xz
-          tar xf zephyr-sdk-0.17.0_linux-x86_64_minimal.tar.xz -C /opt
-          /opt/zephyr-sdk-0.17.0/setup.sh -t arm-zephyr-eabi -c
+          SDK_FILE="zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}_linux-x86_64_minimal.tar.xz"
+          if [[ ! -d /tmp/zephyr-sdk ]]; then
+            wget -q -O /tmp/zephyr-sdk.tar.xz \
+              "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${{ env.ZEPHYR_SDK_VERSION }}/${SDK_FILE}"
+            mkdir /tmp/zephyr-sdk
+            tar xf /tmp/zephyr-sdk.tar.xz -C /tmp/zephyr-sdk --strip-components=1
+          fi
+          /tmp/zephyr-sdk/setup.sh -t arm-zephyr-eabi -c
 
-      - name: Cache nRF Connect SDK workspace
+      - name: Cache NCS workspace
         id: cache-ncs
         uses: actions/cache@v5
         with:
           path: /tmp/ncs-workspace
           key: ncs-${{ env.NCS_VERSION }}-mcuboot-${{ hashFiles('firmware/mcuboot/mcuboot.conf', 'firmware/mcuboot/partitions.overlay') }}
-          restore-keys: |
-            ncs-${{ env.NCS_VERSION }}-mcuboot-
-            ncs-${{ env.NCS_VERSION }}-
-
-      - name: Initialize west workspace
-        if: steps.cache-ncs.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p /tmp/ncs-workspace
-          cd /tmp/ncs-workspace
-          west init -m https://github.com/nrfconnect/sdk-nrf --mr ${{ env.NCS_VERSION }}
-          west update --narrow -o=--depth=1
+          restore-keys: ncs-${{ env.NCS_VERSION }}-
 
       - name: Decode signing key
         env:
@@ -63,23 +69,17 @@ jobs:
           fi
 
       - name: Build MCUboot
+        env:
+          NCS_VERSION: ${{ env.NCS_VERSION }}
+          BOARD: ${{ env.MCUBOOT_BOARD }}
+          SIGNING_KEY: /tmp/signing-key.pem
+          OUTPUT_HEX: ${{ github.workspace }}/firmware/mcuboot/mcuboot-nrf54l10.hex
+          WEST_WORKSPACE: /tmp/ncs-workspace
         run: |
-          cd /tmp/ncs-workspace
-          west build \
-            --no-sysbuild \
-            -b ${{ env.MCUBOOT_BOARD }} \
-            -d build-mcuboot \
-            bootloader/mcuboot/boot/zephyr \
-            --pristine=auto \
-            -- \
-            -DOVERLAY_CONFIG="${{ github.workspace }}/firmware/mcuboot/mcuboot.conf" \
-            -DDTC_OVERLAY_FILE="${{ github.workspace }}/firmware/mcuboot/partitions.overlay" \
-            -DCONFIG_BOOT_SIGNATURE_KEY_FILE="\"/tmp/signing-key.pem\""
+          bash firmware/scripts/build-mcuboot.sh
 
-      - name: Extract bootloader hex
+      - name: Report MCUboot artifact
         run: |
-          cp /tmp/ncs-workspace/build-mcuboot/zephyr/zephyr.hex \
-            firmware/mcuboot/mcuboot-nrf54l10.hex
           echo "MCUboot size: $(stat -c%s firmware/mcuboot/mcuboot-nrf54l10.hex) bytes"
           rm -f /tmp/signing-key.pem
 
