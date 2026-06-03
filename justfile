@@ -12,7 +12,7 @@ default: build clippy
 
 # Build release firmware (no hardware needed)
 build:
-    cd firmware && cargo build --release
+    cd firmware && cargo build --release --features embedded-bin
 
 # Show the generated stable partition manifest path
 partition-manifest: build
@@ -20,21 +20,21 @@ partition-manifest: build
 
 # Build with all optional features
 build-full:
-    cd firmware && cargo build --release --features "debug-uart,ids,soc-heater"
+    cd firmware && cargo build --release --features "embedded-bin,debug-uart,ids,soc-heater"
 
 # Check compilation without producing binary (faster)
 check:
-    cd firmware && cargo check --release
+    cd firmware && cargo check --release --features embedded-bin
 
 # === QUALITY ===
 
 # Run clippy lints
 clippy:
-    cd firmware && cargo clippy --release -- -D warnings
+    cd firmware && cargo clippy --release --features embedded-bin -- -D warnings
 
 # Run clippy for the heater-assisted path as well
 clippy-soc-heater:
-    cd firmware && cargo clippy --release --features soc-heater -- -D warnings
+    cd firmware && cargo clippy --release --features "embedded-bin,soc-heater" -- -D warnings
 
 # Format code
 fmt:
@@ -48,25 +48,25 @@ fmt-check:
 
 # Run all host-side tests (unit + integration)
 test:
-    cd firmware && cargo test --target x86_64-unknown-linux-gnu
+    cd firmware && cargo test --lib --tests --target x86_64-unknown-linux-gnu
 
 # Run tests with the heater-assisted path enabled
 test-soc-heater:
-    cd firmware && cargo test --target x86_64-unknown-linux-gnu --features soc-heater
+    cd firmware && cargo test --lib --tests --target x86_64-unknown-linux-gnu --features soc-heater
 
 # Run tests with coverage (outputs lcov.info at repo root)
 test-cov:
-    cd firmware && cargo llvm-cov --target x86_64-unknown-linux-gnu --lcov --output-path ../lcov.info
+    cd firmware && cargo llvm-cov --lib --tests --target x86_64-unknown-linux-gnu --lcov --output-path ../lcov.info
 
 # Run tests with output (for debugging test failures)
 test-verbose:
-    cd firmware && cargo test --target x86_64-unknown-linux-gnu -- --nocapture
+    cd firmware && cargo test --lib --tests --target x86_64-unknown-linux-gnu -- --nocapture
 
 # === FLASH + RUN (requires STLINK connected) ===
 
 # Flash and run with RTT output (blocks until Ctrl+C)
 run:
-    cd firmware && cargo run --release
+    cd firmware && cargo run --release --features embedded-bin
 
 # Flash only (no RTT capture)
 flash:

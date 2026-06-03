@@ -84,7 +84,6 @@ MEMORY\n\
         .write_all(partition_manifest.as_bytes())
         .unwrap();
     println!("cargo:rustc-link-search={}", out.display());
-    println!("cargo:rerun-if-changed=memory.x");
     println!("cargo:rerun-if-changed=src/partition.rs");
 
     if target_arch == "arm" && target_os == "none" {

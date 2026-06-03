@@ -13,6 +13,7 @@ path = "src/lib.rs"
 name = "window-sensor"
 path = "src/main.rs"
 test = false
+required-features = ["embedded-bin"]
 
 # === Host-portable dependencies (lib only needs these) ===
 [dependencies]
@@ -67,6 +68,7 @@ uuid = "1"
 
 [features]
 default = []
+embedded-bin = []       # Build the no_std embedded firmware binary target
 debug-uart = []         # Enable UART streaming (dev only — adds ~2 KB flash)
 ids = []                # MEMS intrusion detection subsystem
 soc-heater = []         # SHT4x heater-based SoC estimation
