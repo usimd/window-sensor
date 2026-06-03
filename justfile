@@ -191,14 +191,7 @@ sign-hex: objcopy
 
 # Create factory image (MCUboot + signed app merged)
 factory: sign-hex
-    python3 -c " \
-    from intelhex import IntelHex; \
-    boot = IntelHex('{{mcuboot_hex}}'); \
-    app = IntelHex('{{signed_hex}}'); \
-    boot.merge(app, overlap='error'); \
-    boot.write_hex_file('{{factory_hex}}'); \
-    print(f'Factory image: {boot.minaddr():#010x}..{boot.maxaddr():#010x}') \
-    "
+    python3 -c "from intelhex import IntelHex; boot = IntelHex('{{mcuboot_hex}}'); app = IntelHex('{{signed_hex}}'); boot.merge(app, overlap='error'); boot.write_hex_file('{{factory_hex}}'); print(f'Factory image: {boot.minaddr():#010x}..{boot.maxaddr():#010x}')"
     @echo "Factory image: {{factory_hex}}"
 
 # Flash factory image via probe-rs (first-time board bring-up)
