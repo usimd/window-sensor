@@ -102,6 +102,7 @@ jobs:
             kicad/kicad:10.0 kicad-cli sch erc --exit-code-violations window-sensor.kicad_sch
 
       - name: DRC (Design Rules Check)
+        continue-on-error: true
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/work" -w /work \

@@ -1,12 +1,14 @@
 use defmt::*;
 use embassy_futures::select::{Either, select};
-use embassy_time::Timer;
-use embassy_time::Instant;
 use embassy_time::Duration;
+use embassy_time::Instant;
+use embassy_time::Timer;
 
 use crate::drivers::led::Led;
 use crate::{SETUP_CHANGED, SETUP_EVENT, SETUP_LED_HINT, SETUP_STATE, WINDOW_CALIBRATION_REQUEST};
-use window_sensor::setup::{CalibrationPhase, LedHint, SetupController, SetupDecision, SetupEvent, SetupState};
+use window_sensor::setup::{
+    CalibrationPhase, LedHint, SetupController, SetupDecision, SetupEvent, SetupState,
+};
 
 const SETUP_TICK_PERIOD: Duration = Duration::from_secs(1);
 
@@ -59,7 +61,12 @@ pub async fn setup_led_task(mut led_blue: Led<'static>) {
             | LedHint::FactoryResetAlternating
             | LedHint::DebugSolid
             | LedHint::CalibrationFailed => SETUP_LED_HINT.wait().await,
-            _ => match select(SETUP_LED_HINT.wait(), play_blue_pattern(&mut led_blue, current)).await {
+            _ => match select(
+                SETUP_LED_HINT.wait(),
+                play_blue_pattern(&mut led_blue, current),
+            )
+            .await
+            {
                 Either::First(next) => next,
                 Either::Second(_) => current,
             },

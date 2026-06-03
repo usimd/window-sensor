@@ -174,7 +174,7 @@ fn init_lis(bus: &'static SharedI2cBus, config: MemsInterruptConfig) -> Result<L
         config.tap_detection_enabled,
         config.tap_detection_enabled,
     )
-        .map_err(|_| ())?;
+    .map_err(|_| ())?;
     lis.set_x_tap_threshold(config.tap_threshold_x)
         .map_err(|_| ())?;
     lis.set_y_tap_threshold(config.tap_threshold_y)

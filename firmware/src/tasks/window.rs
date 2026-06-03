@@ -18,8 +18,8 @@ use crate::SharedI2cBus;
 use crate::{SETUP_EVENT, STATE_CHANGED, SettingsFlash, WINDOW_CALIBRATION_REQUEST};
 use window_sensor::classifier::{self, WindowState};
 use window_sensor::gesture::{Gesture, GestureDetector};
-use window_sensor::setup::{CalibrationPhase, SetupEvent};
 use window_sensor::settings::{SocSettings, load_soc_settings, save_soc_settings};
+use window_sensor::setup::{CalibrationPhase, SetupEvent};
 use window_sensor::window_tuning::{self, WindowCalibration};
 
 use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
@@ -89,86 +89,80 @@ pub async fn window_task(
     }
 
     loop {
-        let requested_calibration = match select(
-            WINDOW_CALIBRATION_REQUEST.wait(),
-            hall_int.wait_for_low(),
-        )
-        .await
-        {
-            Either::First(phase) => Some(phase),
-            Either::Second(_) => None,
-        };
+        let requested_calibration =
+            match select(WINDOW_CALIBRATION_REQUEST.wait(), hall_int.wait_for_low()).await {
+                Either::First(phase) => Some(phase),
+                Either::Second(_) => None,
+            };
 
         if let Some(phase) = requested_calibration {
             match capture_baseline_mt(&mut tmag).await {
-                Ok(Some(baseline_mt)) => {
-                    match phase {
-                        CalibrationPhase::Closed => {
-                            if window_tuning::is_valid_closed_baseline_mt(baseline_mt) {
-                                let mut next = pending_calibration.unwrap_or(WindowCalibration {
-                                    closed_mt: baseline_mt,
-                                    tilt_mt: baseline_mt / 2.0,
-                                    open_mt: 0.0,
-                                });
-                                next.closed_mt = baseline_mt;
-                                pending_calibration = Some(next);
-                                info!("[WINDOW] Captured CLOSED baseline={}mT", baseline_mt as u32);
-                                SETUP_EVENT.signal(SetupEvent::CalibrationCaptured(phase));
-                            } else {
-                                warn!("[WINDOW] Rejected CLOSED baseline={}mT", baseline_mt as u32);
-                                SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
-                            }
-                        }
-                        CalibrationPhase::Tilt => {
-                            if let Some(mut next) = pending_calibration {
-                                next.tilt_mt = baseline_mt;
-                                pending_calibration = Some(next);
-                                info!("[WINDOW] Captured TILT baseline={}mT", baseline_mt as u32);
-                                SETUP_EVENT.signal(SetupEvent::CalibrationCaptured(phase));
-                            } else {
-                                warn!("[WINDOW] Ignored TILT capture without CLOSED baseline");
-                                SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
-                            }
-                        }
-                        CalibrationPhase::Open => {
-                            if let Some(mut next) = pending_calibration {
-                                next.open_mt = baseline_mt;
-                                if window_tuning::is_valid_window_calibration(next) {
-                                    stored.window_calibrated = true;
-                                    stored.window_closed_baseline_mt_x10 = (next.closed_mt * 10.0) as u16;
-                                    stored.window_tilt_baseline_mt_x10 = (next.tilt_mt * 10.0) as u16;
-                                    stored.window_open_baseline_mt_x10 = (next.open_mt * 10.0) as u16;
-                                    persist_settings(settings_flash, stored);
-                                    calibration = Some(next);
-                                    pending_calibration = calibration;
-                                    wake_threshold_mt = window_tuning::wake_threshold_mt(calibration);
-                                    closed_threshold_mt = window_tuning::closed_threshold_mt(calibration);
-                                    let _ = configure_tmag_wake_and_sleep(&mut tmag, wake_threshold_mt);
-                                    info!(
-                                        "[WINDOW] Calibration stored closed={}mT tilt={}mT open={}mT wake_thr={}mT closed_thr={}mT",
-                                        next.closed_mt as u32,
-                                        next.tilt_mt as u32,
-                                        next.open_mt as u32,
-                                        wake_threshold_mt as u32,
-                                        closed_threshold_mt as u32,
-                                    );
-                                    SETUP_EVENT.signal(SetupEvent::CalibrationStored);
-                                } else {
-                                    warn!(
-                                        "[WINDOW] Rejected calibration closed={}mT tilt={}mT open={}mT",
-                                        next.closed_mt as u32,
-                                        next.tilt_mt as u32,
-                                        next.open_mt as u32,
-                                    );
-                                    SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
-                                }
-                            } else {
-                                warn!("[WINDOW] Ignored OPEN capture without prior phases");
-                                SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
-                            }
+                Ok(Some(baseline_mt)) => match phase {
+                    CalibrationPhase::Closed => {
+                        if window_tuning::is_valid_closed_baseline_mt(baseline_mt) {
+                            let mut next = pending_calibration.unwrap_or(WindowCalibration {
+                                closed_mt: baseline_mt,
+                                tilt_mt: baseline_mt / 2.0,
+                                open_mt: 0.0,
+                            });
+                            next.closed_mt = baseline_mt;
+                            pending_calibration = Some(next);
+                            info!("[WINDOW] Captured CLOSED baseline={}mT", baseline_mt as u32);
+                            SETUP_EVENT.signal(SetupEvent::CalibrationCaptured(phase));
+                        } else {
+                            warn!("[WINDOW] Rejected CLOSED baseline={}mT", baseline_mt as u32);
+                            SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
                         }
                     }
-                }
+                    CalibrationPhase::Tilt => {
+                        if let Some(mut next) = pending_calibration {
+                            next.tilt_mt = baseline_mt;
+                            pending_calibration = Some(next);
+                            info!("[WINDOW] Captured TILT baseline={}mT", baseline_mt as u32);
+                            SETUP_EVENT.signal(SetupEvent::CalibrationCaptured(phase));
+                        } else {
+                            warn!("[WINDOW] Ignored TILT capture without CLOSED baseline");
+                            SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                        }
+                    }
+                    CalibrationPhase::Open => {
+                        if let Some(mut next) = pending_calibration {
+                            next.open_mt = baseline_mt;
+                            if window_tuning::is_valid_window_calibration(next) {
+                                stored.window_calibrated = true;
+                                stored.window_closed_baseline_mt_x10 =
+                                    (next.closed_mt * 10.0) as u16;
+                                stored.window_tilt_baseline_mt_x10 = (next.tilt_mt * 10.0) as u16;
+                                stored.window_open_baseline_mt_x10 = (next.open_mt * 10.0) as u16;
+                                persist_settings(settings_flash, stored);
+                                calibration = Some(next);
+                                pending_calibration = calibration;
+                                wake_threshold_mt = window_tuning::wake_threshold_mt(calibration);
+                                closed_threshold_mt =
+                                    window_tuning::closed_threshold_mt(calibration);
+                                let _ = configure_tmag_wake_and_sleep(&mut tmag, wake_threshold_mt);
+                                info!(
+                                    "[WINDOW] Calibration stored closed={}mT tilt={}mT open={}mT wake_thr={}mT closed_thr={}mT",
+                                    next.closed_mt as u32,
+                                    next.tilt_mt as u32,
+                                    next.open_mt as u32,
+                                    wake_threshold_mt as u32,
+                                    closed_threshold_mt as u32,
+                                );
+                                SETUP_EVENT.signal(SetupEvent::CalibrationStored);
+                            } else {
+                                warn!(
+                                    "[WINDOW] Rejected calibration closed={}mT tilt={}mT open={}mT",
+                                    next.closed_mt as u32, next.tilt_mt as u32, next.open_mt as u32,
+                                );
+                                SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                            }
+                        } else {
+                            warn!("[WINDOW] Ignored OPEN capture without prior phases");
+                            SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
+                        }
+                    }
+                },
                 Ok(None) => {
                     warn!("[WINDOW] Calibration {:?} did not settle", phase);
                     SETUP_EVENT.signal(SetupEvent::CalibrationRejected(phase));
