@@ -133,7 +133,7 @@ jobs:
           echo "Building version: $VER"
 
       - name: Build release
-        run: cargo build --release
+        run: cargo build --release --features embedded-bin
 
       - name: Convert ELF to binary and HEX
         run: |
@@ -189,7 +189,7 @@ jobs:
 
       - name: Binary size report
         run: |
-          cargo size --release -- -A | tee size-report.txt
+          cargo size --release --features embedded-bin -- -A | tee size-report.txt
           echo "---"
           OTA_SIZE=$(stat -c%s target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin)
           echo "OTA image size: $OTA_SIZE bytes"
