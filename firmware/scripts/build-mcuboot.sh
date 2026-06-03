@@ -7,6 +7,7 @@
 #   SIGNING_KEY    - path to ed25519 signing key PEM (private or public)
 #   OUTPUT_HEX     - where to write the bootloader hex (default: firmware/mcuboot/mcuboot-nrf54l10.hex)
 #   BOARD          - Zephyr board target (default: nrf54l15dk/nrf54l10/cpuapp)
+#   PRISTINE       - west build pristine mode (default: auto)
 
 set -euo pipefail
 
@@ -18,6 +19,7 @@ NCS_VERSION="${NCS_VERSION:-v3.3.0}"
 SIGNING_KEY="${SIGNING_KEY:-$REPO_ROOT/firmware/keys/signing-key.pem}"
 OUTPUT_HEX="${OUTPUT_HEX:-$MCUBOOT_DIR/mcuboot-nrf54l10.hex}"
 BOARD="${BOARD:-nrf54l15dk/nrf54l10/cpuapp}"
+PRISTINE="${PRISTINE:-auto}"
 
 WEST_WORKSPACE="${WEST_WORKSPACE:-/tmp/ncs-mcuboot-workspace}"
 
@@ -32,6 +34,7 @@ echo "  NCS version:  $NCS_VERSION"
 echo "  Board:        $BOARD"
 echo "  Signing key:  $SIGNING_KEY"
 echo "  Output:       $OUTPUT_HEX"
+echo "  Pristine:     $PRISTINE"
 echo ""
 
 # --- Initialize west workspace (cached in CI) ---
@@ -53,7 +56,7 @@ west build \
     -b "$BOARD" \
     -d build-mcuboot \
     bootloader/mcuboot/boot/zephyr \
-    --pristine=auto \
+    --pristine="$PRISTINE" \
     -- \
     -DOVERLAY_CONFIG="$MCUBOOT_DIR/mcuboot.conf" \
     -DDTC_OVERLAY_FILE="$MCUBOOT_DIR/partitions.overlay" \

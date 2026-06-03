@@ -54,8 +54,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: /tmp/ncs-workspace
-          key: ncs-${{ env.NCS_VERSION }}-mcuboot-${{ hashFiles('firmware/mcuboot/mcuboot.conf', 'firmware/mcuboot/partitions.overlay') }}
-          restore-keys: ncs-${{ env.NCS_VERSION }}-
+          key: ncs-${{ env.NCS_VERSION }}-zephyr-${{ env.ZEPHYR_SDK_VERSION }}-mcuboot-${{ hashFiles('firmware/mcuboot/mcuboot.conf', 'firmware/mcuboot/partitions.overlay') }}
+          restore-keys: |
+            ncs-${{ env.NCS_VERSION }}-zephyr-${{ env.ZEPHYR_SDK_VERSION }}-
+            ncs-${{ env.NCS_VERSION }}-
 
       - name: Decode signing key
         env:
@@ -75,6 +77,7 @@ jobs:
           SIGNING_KEY: /tmp/signing-key.pem
           OUTPUT_HEX: ${{ github.workspace }}/firmware/mcuboot/mcuboot-nrf54l10.hex
           WEST_WORKSPACE: /tmp/ncs-workspace
+          PRISTINE: always
         run: |
           bash firmware/scripts/build-mcuboot.sh
 
