@@ -26,7 +26,7 @@ embedded-storage = "0.3"
 # Embassy runtime
 embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.5", default-features = false, features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-nrf = { version = "0.10", default-features = false, features = ["defmt", "nrf54l10-app-s", "time-driver-grtc", "gpiote", "unstable-pac", "time", "nfc-pins-as-gpio"] }
+embassy-nrf = { version = "0.11", default-features = false, features = ["defmt", "nrf54l10-app-s", "time-driver-grtc", "gpiote", "unstable-pac", "time", "nfc-pins-as-gpio"] }
 embassy-sync = { version = "0.8", features = ["defmt"] }
 embassy-futures = "0.1"
 embassy-embedded-hal = { version = "0.6", default-features = false }
@@ -35,7 +35,7 @@ embassy-embedded-hal = { version = "0.6", default-features = false }
 nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "peripheral", "nrf54l10-app-s"] }
 nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "critical-section-impl", "nrf54l10-app-s"] }
 bt-hci = { version = "0.9", default-features = false, features = ["defmt"] }
-trouble-host = { version = "0.6", features = ["derive"] }
+trouble-host = { version = "0.7", features = ["derive"] }
 
 # HAL traits
 embedded-hal = "1.0"
