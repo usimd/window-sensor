@@ -475,7 +475,7 @@ fn persist_settings(settings_flash: &'static SettingsFlash, settings: SocSetting
 fn power_fail_warning_active() -> bool {
     matches!(
         pac::REGULATORS.pofstat().read().comparator(),
-        pac::regulators::vals::Comparator::BELOW
+        pac::regulators::vals::Comparator::Below
     )
 }
 
@@ -499,8 +499,8 @@ pub fn build_vdd_saadc(
     channel.time = saadc::Time::_40US;
 
     let mut config = saadc::Config::default();
-    config.resolution = saadc::Resolution::_12BIT;
-    config.oversample = Oversample::OVER8X;
+    config.resolution = saadc::Resolution::_12bit;
+    config.oversample = Oversample::Over8x;
 
     Saadc::new(saadc, irq, config, [channel])
 }

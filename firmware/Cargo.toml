@@ -26,16 +26,16 @@ embedded-storage = "0.3"
 # Embassy runtime
 embassy-executor = { version = "0.10", default-features = false, features = ["platform-cortex-m", "executor-thread", "executor-interrupt", "defmt"] }
 embassy-time = { version = "0.5", default-features = false, features = ["defmt", "defmt-timestamp-uptime"] }
-embassy-nrf = { version = "0.10", default-features = false, features = ["defmt", "nrf54l10-app-s", "time-driver-grtc", "gpiote", "unstable-pac", "time", "nfc-pins-as-gpio"] }
+embassy-nrf = { version = "0.11", default-features = false, features = ["defmt", "nrf54l10-app-s", "time-driver-grtc", "gpiote", "unstable-pac", "time", "nfc-pins-as-gpio"] }
 embassy-sync = { version = "0.8", features = ["defmt"] }
 embassy-futures = "0.1"
 embassy-embedded-hal = { version = "0.6", default-features = false }
 
 # BLE (trouble host + nrf-sdc controller)
 nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "peripheral", "nrf54l10-app-s"] }
-nrf-mpsl = { version = "0.3", default-features = false, features = ["defmt", "critical-section-impl", "nrf54l10-app-s"] }
-bt-hci = { version = "0.9", default-features = false, features = ["defmt"] }
-trouble-host = { version = "0.6", features = ["derive"] }
+nrf-mpsl = { version = "0.4", default-features = false, features = ["critical-section-impl", "nrf54l10-app-s"] }
+bt-hci = { version = "0.10", default-features = false, features = ["defmt"] }
+trouble-host = { version = "0.8", features = ["derive"] }
 
 # HAL traits
 embedded-hal = "1.0"
@@ -84,15 +84,3 @@ overflow-checks = false # Save ~1 KB — we use wrapping math consciously
 debug = 2
 opt-level = 1           # Some optimization even in dev (embedded needs it)
 
-[patch.crates-io]
-# Pin embassy to known-good revisions (trouble example rev)
-embassy-executor = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-embassy-nrf = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-embassy-sync = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-embassy-futures = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-embassy-time = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-embassy-time-driver = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-embassy-embedded-hal = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-embassy-hal-internal = { git = "https://github.com/embassy-rs/embassy.git", rev = "82e83a4bdd269ffb643a200da46f1f415e6548db" }
-nrf-sdc = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "e1fbb89a173dfc053ec4877d366f51804eac498d" }
-nrf-mpsl = { git = "https://github.com/alexmoon/nrf-sdc.git", rev = "e1fbb89a173dfc053ec4877d366f51804eac498d" }
