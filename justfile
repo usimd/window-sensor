@@ -172,7 +172,7 @@ bloat: build
 # === IMAGE SIGNING + FACTORY BUILD ===
 
 slot_size   := "0x60000"
-header_size := "0x200"
+header_size := "0x800"
 signing_key := "firmware/keys/signing-key.pem"
 bin := "firmware/target/" + target + "/release/window-sensor.bin"
 hex := "firmware/target/" + target + "/release/window-sensor.hex"

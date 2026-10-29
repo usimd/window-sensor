@@ -50,8 +50,8 @@ mod tests {
         let layout = PartitionLayout::mcuboot_default();
 
         assert_eq!(layout.validate(), Ok(()));
-        assert_eq!(layout.app_link_origin(), 0x0001_0000);
-        assert_eq!(layout.app_link_length(), 384 * 1024);
+        assert_eq!(layout.app_link_origin(), 0x0001_0800);
+        assert_eq!(layout.app_link_length(), 384 * 1024 - 0x800 - 8 * 1024);
         assert_eq!(layout.ota_layout().slot_size_bytes, 384 * 1024);
     }
 
