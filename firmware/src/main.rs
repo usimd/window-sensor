@@ -42,10 +42,10 @@ fn configure_power_fail_guard() {
     pac::REGULATORS.pofcon().write(|w| {
         w.set_pof(true);
         w.set_threshold(POFWARN_THRESHOLD);
-        w.set_eventdisable(pac::regulators::vals::Eventdisable::ENABLED);
+        w.set_eventdisable(pac::regulators::vals::Eventdisable::Enabled);
     });
     pac::RRAMC.power().config().modify(|w| {
-        w.set_pof(pac::rramc::vals::Pof::ABORT);
+        w.set_pof(pac::rramc::vals::Pof::Abort);
     });
 }
 
