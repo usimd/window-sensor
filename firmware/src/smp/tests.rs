@@ -416,6 +416,23 @@ fn confirm_after_test_swap_sets_image_ok_in_primary() {
 }
 
 #[test]
+fn self_confirm_marks_trial_image_permanent() {
+    let (mut server, _) = server_with_primary([1, 1, 0]);
+    assert!(server.running_image_confirmed());
+    let base = MCU_BOOT_LAYOUT.primary_slot_start;
+    let size = MCU_BOOT_LAYOUT.primary_slot_size;
+    server
+        .flash()
+        .write(base + mcuboot::magic_offset(size), &mcuboot::BOOT_MAGIC)
+        .unwrap();
+    assert!(!server.running_image_confirmed());
+
+    assert!(server.confirm_running_image());
+    assert!(server.running_image_confirmed());
+    assert!(server.confirm_running_image());
+}
+
+#[test]
 fn reset_is_flagged_after_response() {
     let (mut server, _) = server_with_primary([1, 0, 0]);
     assert!(!server.reset_requested());

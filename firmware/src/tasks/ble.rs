@@ -7,6 +7,7 @@
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, Either4, select, select4};
+use embassy_nrf::wdt::WatchdogHandle;
 use embassy_time::{Duration, Instant, Timer};
 use nrf_sdc::SoftdeviceController;
 use static_cell::StaticCell;
@@ -38,6 +39,11 @@ const BURST_ADV_WINDOW: Duration = Duration::from_millis(60);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 const RESET_DELAY: Duration = Duration::from_millis(200);
 
+/// The BLE loop wakes at least once per update window; two missed windows mean it is stuck.
+pub const WATCHDOG_TIMEOUT_S: u32 = 2 * ota_window::WINDOW_PERIOD_S;
+/// A test-swapped image that cannot confirm itself within this time is reverted by MCUboot.
+const TRIAL_GRACE: Duration = Duration::from_secs(15 * 60);
+
 /// Static random address derived from FICR.DEVICEADDR, little-endian.
 pub fn device_address() -> [u8; 6] {
     let ficr = embassy_nrf::pac::FICR;
@@ -48,7 +54,12 @@ pub fn device_address() -> [u8; 6] {
     out
 }
 
-pub fn start(spawner: Spawner, sdc: Sdc, settings_flash: &'static SettingsFlash) {
+pub fn start(
+    spawner: Spawner,
+    sdc: Sdc,
+    settings_flash: &'static SettingsFlash,
+    watchdog: WatchdogHandle,
+) {
     static RESOURCES: StaticCell<HostResources<DefaultPacketPool, CONNECTIONS, L2CAP_CHANNELS>> =
         StaticCell::new();
     static STACK: StaticCell<Stack<'static, Sdc, DefaultPacketPool>> = StaticCell::new();
@@ -58,7 +69,11 @@ pub fn start(spawner: Spawner, sdc: Sdc, settings_flash: &'static SettingsFlash)
             .build(),
     );
     spawner.spawn(unwrap!(ble_runner_task(stack.runner())));
-    spawner.spawn(unwrap!(ble_task(stack.peripheral(), settings_flash)));
+    spawner.spawn(unwrap!(ble_task(
+        stack.peripheral(),
+        settings_flash,
+        watchdog
+    )));
 }
 
 #[embassy_executor::task]
@@ -72,7 +87,11 @@ async fn ble_runner_task(mut runner: Runner<'static, Sdc, DefaultPacketPool>) {
 }
 
 #[embassy_executor::task]
-async fn ble_task(mut peripheral: BlePeripheral, settings_flash: &'static SettingsFlash) {
+async fn ble_task(
+    mut peripheral: BlePeripheral,
+    settings_flash: &'static SettingsFlash,
+    mut watchdog: WatchdogHandle,
+) {
     info!("[BLE] Task started");
 
     static NAME: StaticCell<[u8; ota_window::NAME_LEN]> = StaticCell::new();
@@ -86,7 +105,11 @@ async fn ble_task(mut peripheral: BlePeripheral, settings_flash: &'static Settin
     let mut smp = SmpServer::new(SharedFlash(settings_flash), &MCU_BOOT_LAYOUT);
     let mut ota = OtaController::default();
     let mut schedule = WindowSchedule::new(Instant::now().as_millis());
-    let mut image_confirmed = false;
+    let mut image_confirmed = smp.running_image_confirmed();
+    let trial_deadline = Instant::now() + TRIAL_GRACE;
+    if !image_confirmed {
+        info!("[OTA] trial boot, confirming after first heartbeat");
+    }
     let mut last_env: Option<EnvReading> = None;
 
     let mut packet_counter = PacketCounter::new();
@@ -98,13 +121,18 @@ async fn ble_task(mut peripheral: BlePeripheral, settings_flash: &'static Settin
     let mut setup_state = current_setup_state();
 
     loop {
+        watchdog.pet();
+        let mut wake_at = Instant::from_millis(schedule.next_at_ms());
+        if !image_confirmed {
+            wake_at = wake_at.min(trial_deadline);
+        }
         let events = select4(
             STATE_CHANGED.wait(),
             ENV_DATA.wait(),
             BUTTON_EVENT.wait(),
             SETUP_CHANGED.wait(),
         );
-        let window = Timer::at(Instant::from_millis(schedule.next_at_ms()));
+        let window = Timer::at(wake_at);
         match select(events, window).await {
             Either::First(Either4::First(event)) => {
                 trace!(
@@ -181,7 +209,16 @@ async fn ble_task(mut peripheral: BlePeripheral, settings_flash: &'static Settin
                 }
             }
             Either::Second(()) => {
-                schedule.advance(Instant::now().as_millis());
+                let now = Instant::now();
+                if !image_confirmed && now >= trial_deadline {
+                    warn!("[OTA] trial image unconfirmed, resetting to revert");
+                    Timer::after(RESET_DELAY).await;
+                    cortex_m::peripheral::SCB::sys_reset();
+                }
+                if !schedule.due(now.as_millis()) {
+                    continue;
+                }
+                schedule.advance(now.as_millis());
                 let prerequisites = OtaPrerequisites {
                     battery_pct: last_env.map_or(0, |env| env.battery_soc_pct),
                     setup_state,

@@ -161,6 +161,12 @@ impl<F: NorFlash> Server<F> {
         self.confirm_primary() == rc::OK
     }
 
+    /// False only during a test swap that has not been confirmed yet.
+    pub fn running_image_confirmed(&mut self) -> bool {
+        self.trailer(self.primary)
+            .is_none_or(|trailer| trailer.primary_confirmed())
+    }
+
     /// Handles one complete frame and writes the response frame into `out`; returns its length.
     pub fn handle(&mut self, frame: &[u8], out: &mut [u8]) -> usize {
         let Some(req) = Header::parse(frame) else {
