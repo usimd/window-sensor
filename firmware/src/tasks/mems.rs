@@ -18,7 +18,7 @@ use window_sensor::mems::{
 use window_sensor::mems_button::{MemsButtonDetector, MemsButtonSignal};
 use window_sensor::setup::{MemsGestureDetector, MemsInterrupt, SetupEvent, SetupState};
 
-type LisBus = I2cDevice<'static, NoopRawMutex, embassy_nrf::twim::Twim<'static>>;
+type LisBus = I2cDevice<'static, NoopRawMutex, crate::I2cBus>;
 type LisDevice = Lis2dtw12<LisI2cInterface<LisBus>>;
 
 const RETRY_DELAY: Duration = Duration::from_secs(5);
