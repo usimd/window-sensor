@@ -14,7 +14,8 @@ use embassy_nrf::nvmc;
 use embassy_nrf::pac;
 use embassy_nrf::saadc;
 use embassy_nrf::twim::{self, Twim};
-use embassy_nrf::{bind_interrupts, peripherals};
+use embassy_nrf::wdt::{self, WatchdogHandle};
+use embassy_nrf::{Peri, bind_interrupts, peripherals};
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::{CriticalSectionRawMutex, NoopRawMutex};
 use embassy_sync::mutex::Mutex as AsyncMutex;
@@ -144,6 +145,22 @@ async fn mpsl_task(mpsl: &'static MultiprotocolServiceLayer<'static>) -> ! {
 }
 
 // --- Main entry ---
+
+/// Survives soft resets, so the config must stay identical across firmware versions.
+fn start_watchdog(wdt: Peri<'static, peripherals::WDT0>) -> WatchdogHandle {
+    let mut config = wdt::Config::default();
+    config.timeout_ticks = tasks::ble::WATCHDOG_TIMEOUT_S * 32_768;
+    config.action_during_sleep = wdt::SleepConfig::Run;
+    config.action_during_debug_halt = wdt::HaltConfig::Pause;
+    match wdt::Watchdog::try_new::<_, 1>(wdt, config) {
+        Ok((_, [handle])) => handle,
+        Err(_) => {
+            warn!("[BOOT] watchdog already running with another config");
+            // SAFETY: WDT31 runs with a single reload register from the previous image.
+            unsafe { WatchdogHandle::steal::<peripherals::WDT0>(0) }
+        }
+    }
+}
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -344,7 +361,7 @@ async fn main(spawner: Spawner) {
         settings_flash,
         tasks::environment::EnvironmentConfig::default(),
     )));
-    tasks::ble::start(spawner, sdc, settings_flash);
+    tasks::ble::start(spawner, sdc, settings_flash, start_watchdog(p.WDT0));
 
     info!("[INIT] System running - idle");
 
