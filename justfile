@@ -1,7 +1,8 @@
 # Window Sensor firmware development commands
 # Usage: just <recipe>   (install: cargo install just)
 
-chip := "nRF54L10_xxAA"
+chip := "nRF54L10"
+probe := "--chip " + chip + " --chip-description-path firmware/nRF54L10.yaml"
 target := "thumbv8m.main-none-eabihf"
 elf := "firmware/target/" + target + "/release/window-sensor"
 manifest := "firmware/target/" + target + "/release/partition_manifest.json"
@@ -63,31 +64,55 @@ test-cov:
 test-verbose:
     cd firmware && cargo test --lib --tests --target x86_64-unknown-linux-gnu -- --nocapture
 
-# === FLASH + RUN (requires STLINK connected) ===
+# === FLASH + RUN (requires debug probe connected) ===
 
 # Flash and run with RTT output (blocks until Ctrl+C)
 run:
     cd firmware && cargo run --release --features embedded-bin
 
+# Flash and run the board bring-up test (via probe-rs + RTT), linked bare at 0x0 (no MCUboot)
+# Steps: SoC/FICR, HFXO, LFXO load-cap sweep, VDD, POF, RRAM scratch, I2C scan, BLE; then VDD/POF monitor
+bringup:
+    cd firmware && HWTEST_BARE=1 cargo run --features embedded-bin --bin bringup
+
+# Flash bringup via pyOCD when probe-rs fails to connect. RTT via `just rtt` in a second terminal.
+bringup-pyocd:
+    cd firmware && HWTEST_BARE=1 cargo build --features embedded-bin --bin bringup
+    uvx --from pyocd pyocd flash --target nrf54l --format elf \
+        firmware/target/thumbv8m.main-none-eabihf/debug/bringup
+
+# Raw register-level I2C debug session from the first prototype (not clippy-clean)
+hwtest-i2c:
+    cd firmware && HWTEST_BARE=1 cargo run --features embedded-bin,hwtest-i2c --bin hwtest_i2c
+
+# Per-board factory test in the panel (pogo clamp, DPS-150 at 3.0 V, Pico probe, magnet, UT139C).
+# stage=top after the top-side reflow; stage=full after the bottom side (ends with production flash).
+factory-test stage *args:
+    uv run scripts/factory_test.py {{stage}} {{args}}
+
+# Stream RTT output via pyOCD (run in a second terminal while bringup-pyocd runs)
+rtt:
+    uvx --from pyocd pyocd rtt --target nrf54l
+
 # Flash only (no RTT capture)
 flash:
-    probe-rs download --chip {{chip}} {{elf}}
+    probe-rs download {{probe}} {{elf}}
 
 # Reset device
 reset:
-    probe-rs reset --chip {{chip}}
+    probe-rs reset {{probe}}
 
 # === DEV LOOP (build → flash → RTT stream) ===
 
 # One-command dev loop: build release, flash, stream RTT (Ctrl+C to stop)
 dev: build
     @echo "--- Flashing {{chip}} ---"
-    probe-rs run --chip {{chip}} {{elf}}
+    probe-rs run {{probe}} {{elf}}
 
 # Dev loop with test gate: test → build → flash → RTT
 dev-safe: test build
     @echo "--- Tests passed, flashing {{chip}} ---"
-    probe-rs run --chip {{chip}} {{elf}}
+    probe-rs run {{probe}} {{elf}}
 
 # === BLE VALIDATION (requires device running + BT adapter) ===
 
@@ -103,7 +128,7 @@ ble-validate:
 
 # Attach to running device and stream RTT (no reflash)
 rtt-attach:
-    probe-rs attach --chip {{chip}} {{elf}}
+    probe-rs attach {{probe}} {{elf}}
 
 # === FULL CI LOOP (what the agent runs) ===
 
@@ -114,7 +139,7 @@ ci: fmt-check clippy clippy-soc-heater test-cov test-soc-heater build
 # Agent loop with hardware: build → flash → validate RTT → validate BLE
 ci-hw: build
     @echo "[CI-HW] Flashing..."
-    timeout 20 probe-rs run --chip {{chip}} --log-format '{t} [{L}] {s}' {{elf}} 2>&1 \
+    timeout 20 probe-rs run {{probe}} --log-format '{t} [{L}] {s}' {{elf}} 2>&1 \
         | tee /tmp/rtt_output.txt || true
     @echo "[CI-HW] Checking RTT output..."
     rg -q 'BOOT' /tmp/rtt_output.txt && echo "[PASS] Boot message found" || echo "[FAIL] No boot message"
@@ -194,16 +219,25 @@ factory: sign-hex
     python3 -c "from intelhex import IntelHex; boot = IntelHex('{{mcuboot_hex}}'); app = IntelHex('{{signed_hex}}'); boot.merge(app, overlap='error'); boot.write_hex_file('{{factory_hex}}'); print(f'Factory image: {boot.minaddr():#010x}..{boot.maxaddr():#010x}')"
     @echo "Factory image: {{factory_hex}}"
 
-# Flash factory image via probe-rs (first-time board bring-up)
+# Flash factory image via probe-rs (first-time board bring-up); chip-erase drops bring-up remnants
 flash-factory: factory
-    probe-rs download --chip {{chip}} --format hex {{factory_hex}}
-    probe-rs reset --chip {{chip}}
+    probe-rs download {{probe}} --chip-erase --format hex {{factory_hex}}
+    probe-rs reset {{probe}}
     @echo "Device flashed with factory image and reset."
 
 # Flash only the signed app (assumes MCUboot already present)
 flash-app: sign-hex
-    probe-rs download --chip {{chip}} --format hex {{signed_hex}}
-    probe-rs reset --chip {{chip}}
+    probe-rs download {{probe}} --format hex {{signed_hex}}
+    probe-rs reset {{probe}}
+
+# Download the factory image (MCUboot + app signed with the CI key) of a release workflow run
+fetch-factory run_id:
+    gh run download {{run_id}} -R usimd/window-sensor -n firmware-factory -D firmware/production
+
+# Flash a prebuilt factory hex (e.g. from fetch-factory) with chip erase
+flash-factory-hex hex="firmware/production/window-sensor-factory.hex":
+    probe-rs download {{probe}} --chip-erase --format hex {{hex}}
+    probe-rs reset {{probe}}
 
 # Install image-building tooling
 setup-images:
