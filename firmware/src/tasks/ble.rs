@@ -111,6 +111,7 @@ async fn ble_task(
         info!("[OTA] trial boot, confirming after first heartbeat");
     }
     let mut last_env: Option<EnvReading> = None;
+    let mut window_seq: u8 = 0;
 
     let mut packet_counter = PacketCounter::new();
     let mut status = WindowStatus {
@@ -227,16 +228,16 @@ async fn ble_task(
                     debug!("[OTA] window skipped: {}", Debug2Format(&ota.state()));
                     continue;
                 }
+                window_seq = window_seq.wrapping_add(1);
                 let mut ad = [0u8; 31];
-                let packet_id = packet_counter.next_packet_id();
-                let len = match last_env {
-                    Some(env) => {
-                        telemetry::encode_heartbeat_advertisement(&mut ad, packet_id, env, status)
-                    }
-                    None => telemetry::encode_state_advertisement(&mut ad, packet_id, status),
-                };
+                let len = telemetry::encode_state_advertisement(
+                    &mut ad,
+                    packet_counter.next_packet_id(),
+                    status,
+                );
                 if let Err(error) =
-                    run_update_window(&mut peripheral, &server, &mut smp, &ad[..len]).await
+                    run_update_window(&mut peripheral, &server, &mut smp, &ad[..len], window_seq)
+                        .await
                 {
                     warn!("[OTA] window failed: {}", Debug2Format(&error));
                 }
@@ -251,9 +252,10 @@ async fn run_update_window(
     server: &OtaServer<'_>,
     smp: &mut SmpServer,
     service_data: &[u8],
+    window_seq: u8,
 ) -> Result<(), BleError> {
     let mut adv = [0u8; 31];
-    let adv_len = ota_window::encode_connectable_advertisement(&mut adv, service_data);
+    let adv_len = ota_window::encode_connectable_advertisement(&mut adv, service_data, window_seq);
     let mut scan = [0u8; 31];
     let scan_len = ota_window::encode_scan_response(&mut scan, device_address());
 

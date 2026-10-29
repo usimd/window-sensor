@@ -1,8 +1,10 @@
 //! Update window: a short connectable advertising phase so OTA clients (Home Assistant) can connect.
 //!
 //! The normal adverts are non-connectable to save power. Once per period the device advertises
-//! connectably with a scan response carrying its `WS-xxxx` name, which is what the HA integration
-//! matches on. The window stays open while a client is connected, up to a hard limit.
+//! connectably with a scan response carrying its `WS-xxxx` name. Hosts cache names and cannot tell
+//! connectable adverts apart, so the advert carries a manufacturer-data marker with a per-window
+//! counter: a changed counter means "connect now". The window stays open while a client is
+//! connected, up to a hard limit.
 
 pub const WINDOW_PERIOD_S: u32 = 3600;
 pub const WINDOW_DURATION_MS: u32 = 5000;
@@ -11,6 +13,10 @@ pub const MAX_CONNECTION_S: u32 = 300;
 
 pub const AD_TYPE_FLAGS: u8 = 0x01;
 pub const AD_TYPE_COMPLETE_LOCAL_NAME: u8 = 0x09;
+pub const AD_TYPE_MANUFACTURER_DATA: u8 = 0xFF;
+/// Bluetooth SIG company ID reserved for internal/test use.
+pub const MARKER_COMPANY_ID: u16 = 0xFFFF;
+const MARKER_LEN: usize = 5;
 /// LE General Discoverable, BR/EDR not supported.
 pub const FLAGS_LE_GENERAL_DISCOVERABLE: u8 = 0x06;
 pub const NAME_PREFIX: &[u8; 3] = b"WS-";
@@ -58,11 +64,20 @@ pub fn local_name(addr_le: [u8; 6]) -> [u8; NAME_LEN] {
     name
 }
 
-/// Flags AD followed by an existing AD structure (e.g. the BTHome heartbeat); returns the length.
-pub fn encode_connectable_advertisement(buf: &mut [u8], ad: &[u8]) -> usize {
+/// Flags AD, an existing AD structure (BTHome state) and the window marker; returns the length.
+pub fn encode_connectable_advertisement(buf: &mut [u8], ad: &[u8], window_seq: u8) -> usize {
     buf[..3].copy_from_slice(&[2, AD_TYPE_FLAGS, FLAGS_LE_GENERAL_DISCOVERABLE]);
     buf[3..3 + ad.len()].copy_from_slice(ad);
-    3 + ad.len()
+    let [lo, hi] = MARKER_COMPANY_ID.to_le_bytes();
+    let marker = 3 + ad.len();
+    buf[marker..marker + MARKER_LEN].copy_from_slice(&[
+        MARKER_LEN as u8 - 1,
+        AD_TYPE_MANUFACTURER_DATA,
+        lo,
+        hi,
+        window_seq,
+    ]);
+    marker + MARKER_LEN
 }
 
 pub fn encode_scan_response(buf: &mut [u8], addr_le: [u8; 6]) -> usize {
@@ -77,7 +92,7 @@ pub fn encode_scan_response(buf: &mut [u8], addr_le: [u8; 6]) -> usize {
 mod tests {
     use super::*;
     use crate::classifier::WindowState;
-    use crate::telemetry::{EnvReading, WindowStatus, encode_heartbeat_advertisement};
+    use crate::telemetry::{WindowStatus, encode_state_advertisement};
 
     #[test]
     fn first_window_opens_after_one_period() {
@@ -109,16 +124,11 @@ mod tests {
     }
 
     #[test]
-    fn connectable_heartbeat_fits_legacy_advert() {
-        let mut heartbeat = [0u8; 31];
-        let ad_len = encode_heartbeat_advertisement(
-            &mut heartbeat,
+    fn connectable_state_with_marker_fits_legacy_advert() {
+        let mut state = [0u8; 31];
+        let ad_len = encode_state_advertisement(
+            &mut state,
             255,
-            EnvReading {
-                temperature_cdeg: -4000,
-                humidity_cpct: 10000,
-                battery_soc_pct: 100,
-            },
             WindowStatus {
                 state: WindowState::Tilt,
                 tampered: true,
@@ -126,9 +136,10 @@ mod tests {
             },
         );
         let mut adv = [0u8; 31];
-        let len = encode_connectable_advertisement(&mut adv, &heartbeat[..ad_len]);
+        let len = encode_connectable_advertisement(&mut adv, &state[..ad_len], 7);
         assert!(len <= 31, "connectable advert is {len} bytes");
         assert_eq!(adv[..3], [2, AD_TYPE_FLAGS, FLAGS_LE_GENERAL_DISCOVERABLE]);
-        assert_eq!(adv[3..len], heartbeat[..ad_len]);
+        assert_eq!(adv[3..3 + ad_len], state[..ad_len]);
+        assert_eq!(adv[3 + ad_len..len], [4, 0xFF, 0xFF, 0xFF, 7]);
     }
 }
