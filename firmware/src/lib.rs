@@ -22,6 +22,7 @@ pub mod ota_window;
 pub mod partition;
 pub mod settings;
 pub mod setup;
+pub mod smp;
 pub mod telemetry;
 pub mod version;
 pub mod window_tuning;
