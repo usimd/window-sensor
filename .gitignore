@@ -10,6 +10,10 @@
 *~
 _autosave-*
 \#auto_saved_files\#
+# KiCad lock files record the local username and hostname
+~*.lck
+# Local History editor extension
+.history/
 *.tmp
 *-save.pro
 *-save.kicad_pcb
