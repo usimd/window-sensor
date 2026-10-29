@@ -12,6 +12,7 @@ pub mod bthome;
 pub mod classifier;
 pub mod diagnostics;
 pub mod gesture;
+pub mod mcuboot;
 pub mod mems;
 pub mod mems_button;
 pub mod mems_tuning;
