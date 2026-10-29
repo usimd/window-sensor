@@ -30,6 +30,10 @@ impl PartitionLayout {
     pub const FLASH_SIZE: u32 = 1012 * 1024;
     pub const RAM_BASE: u32 = 0x2000_0000;
     pub const RAM_SIZE: u32 = 192 * 1024;
+    // MCUboot image header; 0x800 keeps the 0x478-byte vector table naturally aligned.
+    pub const IMAGE_HEADER_SIZE: u32 = 0x800;
+    // MCUboot swap-scratch trailer: 96 sectors x 3 status entries x 16-byte RRAM write block + magic.
+    pub const IMAGE_TRAILER_RESERVE: u32 = 8 * 1024;
 
     pub const fn mcuboot_default() -> Self {
         Self {
@@ -82,11 +86,24 @@ impl PartitionLayout {
     }
 
     pub const fn app_link_origin(&self) -> u32 {
-        self.primary_slot_start
+        self.primary_slot_start + self.image_header_size()
     }
 
     pub const fn app_link_length(&self) -> u32 {
-        self.primary_slot_size
+        if self.bootloader_size == 0 {
+            self.primary_slot_size
+        } else {
+            self.primary_slot_size - Self::IMAGE_HEADER_SIZE - Self::IMAGE_TRAILER_RESERVE
+        }
+    }
+
+    /// Bare (bootloader-less) layouts link the vector table directly at the slot start.
+    pub const fn image_header_size(&self) -> u32 {
+        if self.bootloader_size == 0 {
+            0
+        } else {
+            Self::IMAGE_HEADER_SIZE
+        }
     }
 
     pub const fn bootloader_end(&self) -> u32 {

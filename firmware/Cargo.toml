@@ -67,7 +67,7 @@ panic-reset = "0.1"
 
 # Cortex-M
 cortex-m = { version = "0.7", features = ["inline-asm"] }
-cortex-m-rt = "0.7"
+cortex-m-rt = { version = "0.7", features = ["set-vtor"] }
 
 # Utilities
 static_cell = "2"
