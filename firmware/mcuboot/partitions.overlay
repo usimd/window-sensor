@@ -1,5 +1,5 @@
 /*
- * MCUboot partition layout for window-sensor (nRF54L10, 1 MiB RRAM).
+ * MCUboot partition layout for window-sensor (nRF54L10, 1012 KiB RRAM).
  * Must match firmware/src/partition.rs::mcuboot_default()
  *
  * Layout:
