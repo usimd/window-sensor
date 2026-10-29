@@ -32,6 +32,7 @@ required-features = ["embedded-bin", "hwtest-i2c"]
 fixed = "1.10"
 libm = "0.2"
 embedded-storage = "0.3"
+minicbor = { version = "2", default-features = false }
 
 # === Target-specific: only for ARM embedded builds ===
 [target.'cfg(all(target_arch = "arm", target_os = "none"))'.dependencies]
@@ -78,6 +79,7 @@ portable-atomic = "1"
 # Host-side testing (no hardware needed)
 btsensor = "0.1.2"
 uuid = "1"
+minicbor = { version = "2", features = ["alloc"] }
 
 [features]
 default = []
