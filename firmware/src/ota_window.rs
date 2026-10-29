@@ -34,6 +34,10 @@ impl WindowSchedule {
         now_ms >= self.next_at_ms
     }
 
+    pub const fn next_at_ms(&self) -> u64 {
+        self.next_at_ms
+    }
+
     /// Call when a window was opened (or skipped because prerequisites failed).
     pub fn advance(&mut self, now_ms: u64) {
         while self.next_at_ms <= now_ms {

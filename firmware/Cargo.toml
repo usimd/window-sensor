@@ -48,7 +48,7 @@ embassy-embedded-hal = { version = "0.6", default-features = false }
 nrf-sdc = { version = "0.4", default-features = false, features = ["defmt", "peripheral", "nrf54l10-app-s"] }
 nrf-mpsl = { version = "0.4", default-features = false, features = ["critical-section-impl", "nrf54l10-app-s"] }
 bt-hci = { version = "0.10", default-features = false, features = ["defmt"] }
-trouble-host = { version = "0.8", features = ["derive"] }
+trouble-host = { version = "0.8", default-features = false, features = ["peripheral", "gatt", "derive", "default-packet-pool"] }
 
 # HAL traits
 embedded-hal = "1.0"

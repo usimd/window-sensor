@@ -156,6 +156,11 @@ impl<F: NorFlash> Server<F> {
         &mut self.flash
     }
 
+    /// Marks the running image permanent once it proved itself; MCUboot reverts unconfirmed test swaps.
+    pub fn confirm_running_image(&mut self) -> bool {
+        self.confirm_primary() == rc::OK
+    }
+
     /// Handles one complete frame and writes the response frame into `out`; returns its length.
     pub fn handle(&mut self, frame: &[u8], out: &mut [u8]) -> usize {
         let Some(req) = Header::parse(frame) else {
