@@ -135,7 +135,7 @@ pub static DIAGNOSTICS_STATE: Mutex<
 ));
 
 // --- I2C bus type alias ---
-pub type I2cBus = Twim<'static>;
+pub type I2cBus = drivers::i2c::TimeoutTwim<'static>;
 pub type SharedI2cBus = Mutex<NoopRawMutex, RefCell<I2cBus>>;
 pub type SettingsFlash = Mutex<NoopRawMutex, RefCell<nvmc::Nvmc<'static>>>;
 
@@ -159,9 +159,10 @@ async fn main(spawner: Spawner) {
     let mut config = embassy_nrf::config::Config::default();
     config.clock_speed = embassy_nrf::config::ClockSpeed::CK128;
     config.hfclk_source = embassy_nrf::config::HfclkSource::ExternalXtal;
-    config.lfclk_source = embassy_nrf::config::LfclkSource::ExternalXtal;
+    // Must match the MPSL LFCLK source below; LFXO here would also block init forever if Y1 fails to start.
+    config.lfclk_source = embassy_nrf::config::LfclkSource::InternalRC;
 
-    let p = embassy_nrf::init(config);
+    let mut p = embassy_nrf::init(config);
     info!("[BOOT] window-sensor v{}", env!("CARGO_PKG_VERSION"));
     log_reset_reasons();
     configure_power_fail_guard();
@@ -236,6 +237,13 @@ async fn main(spawner: Spawner) {
     led_blue.flash_ms(50).await;
 
     // --- I2C bus init (100 kHz, shared between TMAG5273, LIS2DTW12, SHT4x) ---
+    let recovery = drivers::i2c::recover_bus(p.P1_02.reborrow(), p.P1_03.reborrow(), Pull::None);
+    if recovery.idle() {
+        info!("[INIT] I2C bus idle: {}", recovery);
+    } else {
+        warn!("[INIT] I2C bus still held after recovery: {}", recovery);
+    }
+
     let mut twim_config = twim::Config::default();
     twim_config.frequency = twim::Frequency::K100;
     // External 16.9k pull-ups on SDA/SCL - no internal pull-up needed
@@ -245,13 +253,16 @@ async fn main(spawner: Spawner) {
     // TX RAM buffer for writes from flash (e.g., register address bytes)
     static TWIM_BUF: StaticCell<[u8; 16]> = StaticCell::new();
     let twim_buf = TWIM_BUF.init([0u8; 16]);
-    let i2c = Twim::new(
-        p.SERIAL20,
-        Irqs,
-        p.P1_03, // SDA (B4 on NORA-B216)
-        p.P1_02, // SCL (A3 on NORA-B216)
-        twim_config,
-        twim_buf,
+    let i2c = drivers::i2c::TimeoutTwim::new(
+        Twim::new(
+            p.SERIAL20,
+            Irqs,
+            p.P1_03, // SDA (B4 on NORA-B216)
+            p.P1_02, // SCL (A3 on NORA-B216)
+            twim_config,
+            twim_buf,
+        ),
+        drivers::i2c::TRANSACTION_TIMEOUT,
     );
 
     // Wrap I2C in a shared bus mutex so multiple async tasks can borrow it.

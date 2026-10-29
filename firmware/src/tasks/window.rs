@@ -336,18 +336,10 @@ fn persist_settings(settings_flash: &'static SettingsFlash, settings: SocSetting
 }
 
 fn init_tmag(
-    bus: I2cDevice<
-        'static,
-        embassy_sync::blocking_mutex::raw::NoopRawMutex,
-        embassy_nrf::twim::Twim<'static>,
-    >,
+    bus: I2cDevice<'static, embassy_sync::blocking_mutex::raw::NoopRawMutex, crate::I2cBus>,
 ) -> Result<
     Tmag5273<
-        I2cDevice<
-            'static,
-            embassy_sync::blocking_mutex::raw::NoopRawMutex,
-            embassy_nrf::twim::Twim<'static>,
-        >,
+        I2cDevice<'static, embassy_sync::blocking_mutex::raw::NoopRawMutex, crate::I2cBus>,
         tmag5273::Configured,
         Delay,
     >,
