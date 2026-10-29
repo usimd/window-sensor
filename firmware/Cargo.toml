@@ -15,6 +15,18 @@ path = "src/main.rs"
 test = false
 required-features = ["embedded-bin"]
 
+[[bin]]
+name = "bringup"
+path = "src/bringup.rs"
+test = false
+required-features = ["embedded-bin"]
+
+[[bin]]
+name = "hwtest_i2c"
+path = "src/hwtest_i2c.rs"
+test = false
+required-features = ["embedded-bin", "hwtest-i2c"]
+
 # === Host-portable dependencies (lib only needs these) ===
 [dependencies]
 fixed = "1.10"
@@ -51,6 +63,7 @@ sensirion-i2c = "0.4"
 defmt = "1.0"
 defmt-rtt = "1.0"
 panic-probe = { version = "1.0", features = ["print-defmt"] }
+panic-reset = "0.1"
 
 # Cortex-M
 cortex-m = { version = "0.7", features = ["inline-asm"] }
@@ -72,6 +85,7 @@ embedded-bin = []       # Build the no_std embedded firmware binary target
 debug-uart = []         # Enable UART streaming (dev only — adds ~2 KB flash)
 ids = []                # MEMS intrusion detection subsystem
 soc-heater = []         # SHT4x heater-based SoC estimation
+hwtest-i2c = []         # Build the raw I2C register-level debug binary (not clippy-clean)
 
 [profile.release]
 codegen-units = 1

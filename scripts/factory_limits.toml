@@ -1,0 +1,43 @@
+# Pass/fail limits for scripts/factory_test.py.
+# Keys are MEAS values from the bring-up firmware, or values the script measures/asks for.
+# "full" runs every "top" check as well; a key repeated in "full" overrides the "top" rule.
+# Assumes the DPS-150 supplies 3.0 V through the pogo clamp.
+
+[top]
+soc_rram_kib = { eq = 1012 }
+soc_ram_kib = { eq = 192 }
+hfxo_ok = { eq = 1 }
+lfxo_ok = { eq = 1 }
+lfxo_ppm = { min = -100, max = 100 }
+vdd_mv = { min = 2850, max = 3150 }
+pof_above = { eq = 1 }
+rram_ok = { eq = 1 }
+i2c_idle = { eq = 1 }
+i2c_pullup_scl = { eq = 1 }
+i2c_pullup_sda = { eq = 1 }
+i2c_ack_19 = { eq = 1 }
+i2c_ack_22 = { eq = 1 }
+lis_whoami = { eq = 0x44 }
+lis_g_mg = { min = 850, max = 1150 }
+# Self-test output change window from the LIS2DW12 datasheet / ST AN5038.
+lis_st_x_mg = { min = 70, max = 1500 }
+lis_st_y_mg = { min = 70, max = 1500 }
+lis_st_z_mg = { min = 70, max = 1500 }
+lis_int1 = { eq = 1 }
+lis_int2 = { eq = 1 }
+tmag_manufacturer = { eq = 0x5449 }
+tmag_int = { eq = 1 }
+tmag_magnet_delta_dmt = { min = 20 }
+ble_adv = { eq = 1 }
+ble_seen = { eq = 1 }
+
+[full]
+i2c_ack_44 = { eq = 1 }
+sht_crc_ok = { eq = 1 }
+sht_t_cdeg = { min = 1500, max = 3500 }
+sht_rh_cpct = { min = 1000, max = 9000 }
+leds_ok = { eq = 1 }
+battery_ble_seen = { eq = 1 }
+# Start value; tighten to ~1.5x the reading of the first good board.
+sleep_ua = { max = 20.0 }
+production_flash = { eq = 1 }

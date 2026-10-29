@@ -1,5 +1,5 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-rs run --chip nRF54L10_xxAA"
+runner = "probe-rs run --chip nRF54L10 --chip-description-path nRF54L10.yaml --connect-under-reset --protocol swd"
 
 [build]
 target = "thumbv8m.main-none-eabihf"
