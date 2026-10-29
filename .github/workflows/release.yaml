@@ -167,11 +167,25 @@ jobs:
           echo "Slot capacity:  393216 bytes (384 KiB)"
           echo "Utilization:    $(( OTA_SIZE * 100 / 393216 ))%"
 
+      - name: OTA manifest
+        working-directory: firmware/target/thumbv8m.main-none-eabihf/release
+        run: |
+          jq -n \
+            --arg version "${{ steps.version.outputs.version }}" \
+            --arg file window-sensor-ota.bin \
+            --argjson size "$(stat -c%s window-sensor-ota.bin)" \
+            --arg sha256 "$(sha256sum window-sensor-ota.bin | cut -d' ' -f1)" \
+            '{schema: 1, version: $version, file: $file, size: $size, sha256: $sha256}' \
+            > window-sensor-ota.json
+          cat window-sensor-ota.json
+
       - name: Upload OTA image
         uses: actions/upload-artifact@v7
         with:
           name: firmware-ota
-          path: firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
+          path: |
+            firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.bin
+            firmware/target/thumbv8m.main-none-eabihf/release/window-sensor-ota.json
 
       - name: Upload factory image
         uses: actions/upload-artifact@v7
@@ -214,6 +228,7 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/firmware-ota/window-sensor-ota.bin
+            artifacts/firmware-ota/window-sensor-ota.json
             artifacts/firmware-factory/window-sensor-factory.hex
             artifacts/firmware-signed-hex/window-sensor-signed.hex
             artifacts/mcuboot-hex/mcuboot-nrf54l10.hex
