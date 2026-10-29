@@ -367,6 +367,28 @@ fn test_request_marks_secondary_pending_like_mcuboot() {
 }
 
 #[test]
+fn test_request_for_older_image_is_rejected() {
+    let (mut server, _) = server_with_primary([1, 2, 0]);
+    let (img, hash) = image([1, 1, 9], 3000, 0x80);
+    upload(&mut server, &img, 400);
+
+    let (_, body) = call(
+        &mut server,
+        &request(OP_WRITE, GROUP_IMAGE, IMAGE_STATE, 9, |e| {
+            e.map(1).unwrap();
+            e.str("hash").unwrap().bytes(&hash).unwrap();
+        }),
+    );
+    let mut err = field(&body, "err").unwrap();
+    assert_eq!(err.map().unwrap(), Some(2));
+    assert_eq!(err.str().unwrap(), "group");
+    assert_eq!(err.u16().unwrap(), GROUP_IMAGE);
+    assert_eq!(err.str().unwrap(), "rc");
+    assert_eq!(err.u8().unwrap(), rc::EBADSTATE);
+    assert!(!state(&mut server)[1].pending);
+}
+
+#[test]
 fn test_request_with_unknown_hash_is_rejected() {
     let (mut server, _) = server_with_primary([1, 0, 0]);
     let (img, _) = image([1, 1, 0], 3000, 0x80);

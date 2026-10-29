@@ -295,15 +295,22 @@ impl<F: NorFlash> Server<F> {
             return rc::EINVAL;
         }
 
-        let primary_hash = self.slot_info(self.primary).map(|(_, h)| h);
+        let primary = self.slot_info(self.primary);
+        let primary_hash = primary.map(|(_, h)| h);
         if confirm && (hash.is_none() || hash == primary_hash) {
             return self.confirm_primary();
         }
-        let Some((_, secondary_hash)) = self.slot_info(self.secondary) else {
+        let Some((secondary_header, secondary_hash)) = self.slot_info(self.secondary) else {
             return rc::ENOENT;
         };
         if hash != Some(secondary_hash) || self.upload.is_some() {
             return rc::EINVAL;
+        }
+        // Unauthenticated link: never let a client roll back to an older signed image.
+        if primary
+            .is_some_and(|(header, _)| semver(&secondary_header.version) < semver(&header.version))
+        {
+            return rc::EBADSTATE;
         }
         let swap_type = if confirm {
             mcuboot::SWAP_TYPE_PERM
@@ -469,6 +476,11 @@ impl<F: NorFlash> Server<F> {
             None => Err(rc::ECORRUPT),
         }
     }
+}
+
+/// Build number is ignored: it does not order releases.
+fn semver(version: &mcuboot::ImageVersion) -> (u8, u8, u16) {
+    (version.major, version.minor, version.revision)
 }
 
 fn for_each_entry<'b>(
