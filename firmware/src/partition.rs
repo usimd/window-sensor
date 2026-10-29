@@ -26,7 +26,8 @@ impl PartitionRegion {
 
 impl PartitionLayout {
     pub const FLASH_BASE: u32 = 0x0000_0000;
-    pub const FLASH_SIZE: u32 = 1024 * 1024;
+    // nRF54L10 RRAM is 1012 KiB (Zephyr nrf54l10.dtsi), not 1 MiB.
+    pub const FLASH_SIZE: u32 = 1012 * 1024;
     pub const RAM_BASE: u32 = 0x2000_0000;
     pub const RAM_SIZE: u32 = 192 * 1024;
 
@@ -41,7 +42,7 @@ impl PartitionLayout {
             scratch_start: 0x000D_0000,
             scratch_size: 64 * 1024,
             settings_start: 0x000E_0000,
-            settings_size: 128 * 1024,
+            settings_size: 96 * 1024,
         }
     }
 
