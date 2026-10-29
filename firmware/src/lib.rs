@@ -17,6 +17,7 @@ pub mod mems_button;
 pub mod mems_tuning;
 pub mod ota;
 pub mod ota_boot;
+pub mod ota_window;
 pub mod partition;
 pub mod settings;
 pub mod setup;
