@@ -77,6 +77,7 @@ pub fn encode_heartbeat_advertisement(
             status.state == WindowState::Tilt,
             status.tampered,
             status.problem,
+            crate::version::FIRMWARE_VERSION,
         )
     })
 }

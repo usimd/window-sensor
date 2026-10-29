@@ -127,6 +127,8 @@ jobs:
             VER="0.0.0+$(git rev-list --count HEAD)"
           fi
           echo "version=$VER" >> "$GITHUB_OUTPUT"
+          # sign/sign-hex rebuild via just dependencies, so every later step needs it
+          echo "WINDOW_SENSOR_VERSION=$VER" >> "$GITHUB_ENV"
           echo "Building version: $VER"
 
       - name: Build release

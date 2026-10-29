@@ -17,6 +17,7 @@ fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").expect("missing target os");
 
     println!("cargo:rerun-if-env-changed=HWTEST_BARE");
+    println!("cargo:rerun-if-env-changed=WINDOW_SENSOR_VERSION");
 
     // When HWTEST_BARE=1, link directly from flash base (no MCUboot) for bringup testing
     let layout = if env::var("HWTEST_BARE").as_deref() == Ok("1") {

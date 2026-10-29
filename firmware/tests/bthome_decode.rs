@@ -69,6 +69,15 @@ fn heartbeat_advertisement_decodes_with_btsensor() {
         },
     );
 
+    // btsensor 0.1 does not know the device-information objects (0xF0-0xF2): check, then strip.
+    let [major, minor, patch] = window_sensor::version::FIRMWARE_VERSION;
+    assert_eq!(
+        buf[len - 4..len],
+        [bthome::obj_id::FIRMWARE_VERSION_3, patch, minor, major]
+    );
+    buf[0] -= 4;
+    let len = len - 4;
+
     let decoded = decode_bthome_v2(&buf[..len]);
     assert!(decoded.trigger_based);
     assert_eq!(
