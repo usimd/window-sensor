@@ -2,10 +2,10 @@
 #![no_main]
 #![allow(dead_code)] // Driver register constants and board type aliases are reference documentation
 
-use bt_hci::cmd::SyncCmd;
 use core::cell::RefCell;
 use defmt::*;
 use embassy_executor::Spawner;
+use trouble_host::prelude::{DefaultPacketPool, PacketPool};
 
 use embassy_embedded_hal::shared_bus::blocking::i2c::I2cDevice;
 use embassy_nrf::cracen;
@@ -23,7 +23,6 @@ use embassy_time::Timer;
 use lis2dtw12::Lis2dtw12;
 use lis2dtw12::interface::{I2CInterface as LisI2cInterface, SlaveAddr as LisSlaveAddr};
 use nrf_sdc::mpsl::MultiprotocolServiceLayer;
-use nrf_sdc::vendor::ZephyrWriteBdAddr;
 use nrf_sdc::{self as sdc, mpsl};
 use sht4x::Sht4x;
 use static_cell::StaticCell;
@@ -144,14 +143,6 @@ async fn mpsl_task(mpsl: &'static MultiprotocolServiceLayer<'static>) -> ! {
     mpsl.run().await
 }
 
-fn bd_addr() -> bt_hci::param::BdAddr {
-    let ficr = embassy_nrf::pac::FICR;
-    let high = u64::from(ficr.deviceaddr(1).read());
-    let addr = (high << 32) | u64::from(ficr.deviceaddr(0).read());
-    let addr = addr | 0x0000_c000_0000_0000;
-    bt_hci::param::BdAddr::new(unwrap!(addr.to_le_bytes()[..6].try_into()))
-}
-
 // --- Main entry ---
 
 #[embassy_executor::main]
@@ -218,19 +209,15 @@ async fn main(spawner: Spawner) {
     static RNG: StaticCell<cracen::Cracen<'static, embassy_nrf::mode::Blocking>> =
         StaticCell::new();
     let rng = RNG.init(cracen::Cracen::new_blocking(p.CRACEN));
-    static SDC_MEM: StaticCell<sdc::Mem<4096>> = StaticCell::new();
-    static SDC: StaticCell<sdc::SoftdeviceController> = StaticCell::new();
+    static SDC_MEM: StaticCell<sdc::Mem<8192>> = StaticCell::new();
+    let mtu = <DefaultPacketPool as PacketPool>::MTU as u16;
     let sdc_builder = unwrap!(sdc::Builder::new());
     let sdc_builder = sdc_builder.support_adv().support_peripheral();
     let sdc_builder = unwrap!(sdc_builder.adv_count(1));
     let sdc_builder = unwrap!(sdc_builder.adv_buffer_cfg(31));
-    let sdc = SDC.init(unwrap!(sdc_builder.build(
-        sdc_p,
-        rng,
-        mpsl,
-        SDC_MEM.init(sdc::Mem::new()),
-    )));
-    unwrap!(ZephyrWriteBdAddr::new(bd_addr()).exec(sdc).await);
+    let sdc_builder = unwrap!(sdc_builder.peripheral_count(1));
+    let sdc_builder = unwrap!(sdc_builder.buffer_cfg(mtu, mtu, 3, 3));
+    let sdc = unwrap!(sdc_builder.build(sdc_p, rng, mpsl, SDC_MEM.init(sdc::Mem::new()),));
 
     // --- LED boot flash (blue, 50ms) ---
     let mut led_blue = Led::new(Output::new(p.P1_08, Level::Low, OutputDrive::Standard));
@@ -357,7 +344,7 @@ async fn main(spawner: Spawner) {
         settings_flash,
         tasks::environment::EnvironmentConfig::default(),
     )));
-    spawner.spawn(unwrap!(tasks::ble::ble_task(sdc)));
+    tasks::ble::start(spawner, sdc, settings_flash);
 
     info!("[INIT] System running - idle");
 
