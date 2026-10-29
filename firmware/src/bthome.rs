@@ -14,6 +14,7 @@ pub mod obj_id {
     pub const WINDOW: u8 = 0x2D; // 0=closed, 1=open
     pub const TAMPER: u8 = 0x2B; // 0=normal, 1=tampered
     pub const BUTTON_EVENT: u8 = 0x3A;
+    pub const FIRMWARE_VERSION_3: u8 = 0xF2; // uint24: patch, minor, major
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,6 +99,7 @@ pub fn encode_heartbeat(
     is_tilt: bool,
     tampered: bool,
     problem: bool,
+    firmware_version: [u8; 3],
 ) -> usize {
     let mut pos = 0;
 
@@ -141,6 +143,10 @@ pub fn encode_heartbeat(
     buf[pos] = obj_id::WINDOW;
     buf[pos + 1] = window_open as u8;
     pos += 2;
+
+    let [major, minor, patch] = firmware_version;
+    buf[pos..pos + 4].copy_from_slice(&[obj_id::FIRMWARE_VERSION_3, patch, minor, major]);
+    pos += 4;
 
     pos
 }
@@ -211,7 +217,18 @@ mod tests {
     #[test]
     fn test_encode_heartbeat_basic() {
         let mut buf = [0u8; 32];
-        let len = encode_heartbeat(&mut buf, 42, 75, 2350, 6520, false, false, false, false);
+        let len = encode_heartbeat(
+            &mut buf,
+            42,
+            75,
+            2350,
+            6520,
+            false,
+            false,
+            false,
+            false,
+            [1, 2, 3],
+        );
         assert_eq!(buf[0], DEVICE_INFO);
         // Battery = 75%
         assert_eq!(buf[3], obj_id::BATTERY);
@@ -230,22 +247,30 @@ mod tests {
         assert_eq!(buf[16], 0);
         assert_eq!(buf[17], obj_id::WINDOW);
         assert_eq!(buf[18], 0);
-        // Must fit in standard BLE advert
-        assert!(len <= 27, "Heartbeat {} bytes exceeds 27-byte limit", len);
+        assert_eq!(buf[19..23], [obj_id::FIRMWARE_VERSION_3, 3, 2, 1]);
+        assert_eq!(len, 23);
     }
 
     #[test]
     fn test_heartbeat_max_values_fits_ble() {
         let mut buf = [0u8; 32];
-        let len = encode_heartbeat(&mut buf, 255, 100, 8500, 10000, true, true, true, true);
-        // AD structure: len(1) + type(1) + UUID(2) + payload ≤ 27
-        assert!(len <= 27, "Max heartbeat {} bytes exceeds limit", len);
+        let len = encode_heartbeat(
+            &mut buf, 255, 100, 8500, 10000, true, true, true, true, [255; 3],
+        );
+        // Service-data AD (4-byte header + payload) plus a 3-byte Flags AD for connectable adverts.
+        assert!(
+            3 + 4 + len <= 31,
+            "heartbeat payload of {} bytes overflows the advert",
+            len
+        );
     }
 
     #[test]
     fn test_heartbeat_negative_temperature() {
         let mut buf = [0u8; 32];
-        let _len = encode_heartbeat(&mut buf, 1, 50, -1500, 3000, false, false, false, false);
+        let _len = encode_heartbeat(
+            &mut buf, 1, 50, -1500, 3000, false, false, false, false, [0; 3],
+        );
         // -15.00°C encoded as sint16 LE
         assert_eq!(i16::from_le_bytes([buf[6], buf[7]]), -1500);
     }
