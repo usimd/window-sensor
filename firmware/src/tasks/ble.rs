@@ -41,8 +41,9 @@ const BURST_ADV_WINDOW: Duration = Duration::from_millis(60);
 const RETRY_DELAY: Duration = Duration::from_secs(5);
 const RESET_DELAY: Duration = Duration::from_millis(200);
 
-/// The BLE loop wakes at least once per update window; two missed windows mean it is stuck.
-pub const WATCHDOG_TIMEOUT_S: u32 = 2 * ota_window::WINDOW_PERIOD_S;
+/// Survives soft resets, so it must not change between firmware versions.
+pub const WATCHDOG_TIMEOUT_S: u32 = 2 * 3600;
+const WATCHDOG_PET_INTERVAL: Duration = Duration::from_secs(3600);
 /// A test-swapped image that cannot confirm itself within this time is reverted by MCUboot.
 const TRIAL_GRACE: Duration = Duration::from_secs(15 * 60);
 
@@ -124,7 +125,8 @@ async fn ble_task(
 
     loop {
         watchdog.pet();
-        let mut wake_at = Instant::from_millis(schedule.next_at_ms());
+        let mut wake_at =
+            Instant::from_millis(schedule.next_at_ms()).min(Instant::now() + WATCHDOG_PET_INTERVAL);
         if !image_confirmed {
             wake_at = wake_at.min(trial_deadline);
         }

@@ -6,7 +6,8 @@
 //! counter: a changed counter means "connect now". The window stays open while a client is
 //! connected, up to a hard limit.
 
-pub const WINDOW_PERIOD_S: u32 = 3600;
+/// Long on purpose: every window costs power and is the only time anyone can push an image.
+pub const WINDOW_PERIOD_S: u32 = 6 * 3600;
 pub const WINDOW_DURATION_MS: u32 = 5000;
 pub const WINDOW_ADV_INTERVAL_MS: u32 = 100;
 pub const MAX_CONNECTION_S: u32 = 300;
