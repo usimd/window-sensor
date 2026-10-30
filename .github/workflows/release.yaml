@@ -59,22 +59,10 @@ jobs:
             ncs-${{ env.NCS_VERSION }}-zephyr-${{ env.ZEPHYR_SDK_VERSION }}-
             ncs-${{ env.NCS_VERSION }}-
 
-      - name: Decode signing key
-        env:
-          MCUBOOT_SIGNING_KEY: ${{ secrets.MCUBOOT_SIGNING_KEY }}
-        run: |
-          if [[ -n "${MCUBOOT_SIGNING_KEY:-}" ]]; then
-            echo "$MCUBOOT_SIGNING_KEY" | base64 -d > /tmp/signing-key.pem
-          else
-            echo "::warning::No signing key secret — generating ephemeral dev key"
-            imgtool keygen -k /tmp/signing-key.pem -t ed25519
-          fi
-
       - name: Build MCUboot
         env:
           NCS_VERSION: ${{ env.NCS_VERSION }}
           BOARD: ${{ env.MCUBOOT_BOARD }}
-          SIGNING_KEY: /tmp/signing-key.pem
           OUTPUT_HEX: ${{ github.workspace }}/firmware/mcuboot/mcuboot-nrf54l10.hex
           WEST_WORKSPACE: /tmp/ncs-workspace
           PRISTINE: always
@@ -84,7 +72,6 @@ jobs:
       - name: Report MCUboot artifact
         run: |
           echo "MCUboot size: $(stat -c%s firmware/mcuboot/mcuboot-nrf54l10.hex) bytes"
-          rm -f /tmp/signing-key.pem
 
       - name: Upload MCUboot hex
         uses: actions/upload-artifact@v7

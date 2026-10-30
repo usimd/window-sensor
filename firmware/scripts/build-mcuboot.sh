@@ -4,7 +4,8 @@
 #
 # Inputs (env vars):
 #   NCS_VERSION    - nRF Connect SDK version tag (default: v2.9.0)
-#   SIGNING_KEY    - path to ed25519 signing key PEM (private or public)
+#   SIGNING_KEY    - ed25519 public (or private) key PEM of the release signing key
+#   EXTRA_KEYS     - space-separated public key PEMs MCUboot also trusts (offline backup key)
 #   OUTPUT_HEX     - where to write the bootloader hex (default: firmware/mcuboot/mcuboot-nrf54l10.hex)
 #   BOARD          - Zephyr board target (default: nrf54l15dk/nrf54l10/cpuapp)
 #   PRISTINE       - west build pristine mode (default: auto)
@@ -16,7 +17,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MCUBOOT_DIR="$REPO_ROOT/firmware/mcuboot"
 
 NCS_VERSION="${NCS_VERSION:-v3.3.0}"
-SIGNING_KEY="${SIGNING_KEY:-$REPO_ROOT/firmware/keys/signing-key.pem}"
+SIGNING_KEY="${SIGNING_KEY:-$REPO_ROOT/firmware/keys/signing-key.pub.pem}"
+EXTRA_KEYS="${EXTRA_KEYS-$REPO_ROOT/firmware/keys/backup-signing-key.pub.pem}"
 OUTPUT_HEX="${OUTPUT_HEX:-$MCUBOOT_DIR/mcuboot-nrf54l10.hex}"
 BOARD="${BOARD:-nrf54l15dk/nrf54l10/cpuapp}"
 PRISTINE="${PRISTINE:-auto}"
@@ -33,6 +35,7 @@ echo "=== Building MCUboot for nRF54L10 ==="
 echo "  NCS version:  $NCS_VERSION"
 echo "  Board:        $BOARD"
 echo "  Signing key:  $SIGNING_KEY"
+echo "  Extra keys:   ${EXTRA_KEYS:-none}"
 echo "  Output:       $OUTPUT_HEX"
 echo "  Pristine:     $PRISTINE"
 echo ""
@@ -50,6 +53,13 @@ else
 fi
 
 # --- Build MCUboot ---
+KEYS_C=bootloader/mcuboot/boot/zephyr/keys.c
+git -C bootloader/mcuboot checkout -- boot/zephyr/keys.c
+if [[ -n "$EXTRA_KEYS" ]]; then
+    # shellcheck disable=SC2086 # EXTRA_KEYS is a space-separated list of paths
+    python3 "$SCRIPT_DIR/mcuboot_extra_keys.py" "$KEYS_C" $EXTRA_KEYS
+fi
+
 echo "Building MCUboot..."
 west build \
     --no-sysbuild \
