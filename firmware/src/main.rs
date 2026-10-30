@@ -3,6 +3,7 @@
 #![allow(dead_code)] // Driver register constants and board type aliases are reference documentation
 
 use core::cell::RefCell;
+use core::sync::atomic::AtomicU16;
 use defmt::*;
 use embassy_executor::Spawner;
 use trouble_host::prelude::{DefaultPacketPool, PacketPool};
@@ -99,6 +100,9 @@ pub static STATE_CHANGED: Signal<CriticalSectionRawMutex, tasks::window::WindowE
 /// Signal from env_task -> ble_task with environment data
 pub static ENV_DATA: Signal<CriticalSectionRawMutex, window_sensor::telemetry::EnvReading> =
     Signal::new();
+
+/// Last battery voltage measured under the heater load (0 = not measured yet).
+pub static BATTERY_LOADED_MV: AtomicU16 = AtomicU16::new(0);
 
 /// Signal from sensor tasks -> setup_task with onboarding/runtime events.
 pub static SETUP_EVENT: Signal<CriticalSectionRawMutex, window_sensor::setup::SetupEvent> =

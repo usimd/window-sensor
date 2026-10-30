@@ -4,6 +4,8 @@
 //! setup allow it, the device advertises connectably for `WINDOW_DURATION_MS` and serves MCUmgr SMP
 //! to an OTA client (Home Assistant) for at most `MAX_CONNECTION_S`.
 
+use core::sync::atomic::Ordering;
+
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_futures::select::{Either, Either4, select, select4};
@@ -22,8 +24,8 @@ use window_sensor::telemetry::{self, EnvReading, PacketCounter, WindowStatus};
 
 use super::ota::{OtaServer, SharedFlash, SmpServer};
 use crate::{
-    BUTTON_EVENT, DIAGNOSTICS_STATE, ENV_DATA, SETUP_CHANGED, SETUP_STATE, STATE_CHANGED,
-    SettingsFlash,
+    BATTERY_LOADED_MV, BUTTON_EVENT, DIAGNOSTICS_STATE, ENV_DATA, SETUP_CHANGED, SETUP_STATE,
+    STATE_CHANGED, SettingsFlash,
 };
 
 type Sdc = SoftdeviceController<'static>;
@@ -110,7 +112,6 @@ async fn ble_task(
     if !image_confirmed {
         info!("[OTA] trial boot, confirming after first heartbeat");
     }
-    let mut last_env: Option<EnvReading> = None;
     let mut window_seq: u8 = 0;
 
     let mut packet_counter = PacketCounter::new();
@@ -155,7 +156,6 @@ async fn ble_task(
                 }
             }
             Either::First(Either4::Second(env)) => {
-                last_env = Some(env);
                 status.problem = current_problem_state();
                 if send_heartbeat(&mut peripheral, &mut packet_counter, env, status)
                     .await
@@ -221,7 +221,10 @@ async fn ble_task(
                 }
                 schedule.advance(now.as_millis());
                 let prerequisites = OtaPrerequisites {
-                    battery_pct: last_env.map_or(0, |env| env.battery_soc_pct),
+                    battery_loaded_mv: match BATTERY_LOADED_MV.load(Ordering::Relaxed) {
+                        0 => None,
+                        mv => Some(mv),
+                    },
                     setup_state,
                 };
                 if !ota.apply(OtaCommand::Evaluate(prerequisites)).advertise_ota {

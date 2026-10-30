@@ -34,9 +34,9 @@ check:
 clippy:
     cd firmware && cargo clippy --release --features embedded-bin -- -D warnings
 
-# Run clippy for the heater-assisted path as well
-clippy-soc-heater:
-    cd firmware && cargo clippy --release --features "embedded-bin,soc-heater" -- -D warnings
+# Run clippy without the heater-assisted SoC path
+clippy-no-heater:
+    cd firmware && cargo clippy --release --no-default-features --features embedded-bin -- -D warnings
 
 # Format code
 fmt:
@@ -52,9 +52,9 @@ fmt-check:
 test:
     cd firmware && cargo test --lib --tests --target x86_64-unknown-linux-gnu
 
-# Run tests with the heater-assisted path enabled
-test-soc-heater:
-    cd firmware && cargo test --lib --tests --target x86_64-unknown-linux-gnu --features soc-heater
+# Run tests without the heater-assisted SoC path
+test-no-heater:
+    cd firmware && cargo test --lib --tests --target x86_64-unknown-linux-gnu --no-default-features
 
 # Run tests with coverage (outputs lcov.info at repo root)
 test-cov:
@@ -133,7 +133,7 @@ rtt-attach:
 # === FULL CI LOOP (what the agent runs) ===
 
 # Full CI loop: lint → test (with coverage) → build (no hardware)
-ci: fmt-check clippy clippy-soc-heater test-cov test-soc-heater build
+ci: fmt-check clippy clippy-no-heater test-cov test-no-heater build
     @echo "[CI] All checks passed"
 
 # Agent loop with hardware: build → flash → validate RTT → validate BLE
