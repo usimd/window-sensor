@@ -19,7 +19,8 @@ impl Default for OtaLayout {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OtaPolicy {
-    pub min_battery_pct: u8,
+    /// Battery voltage under the ~31 mA heater pulse; the OTA radio and RRAM writes draw far less.
+    pub min_loaded_mv: u16,
     pub max_image_size_bytes: u32,
     pub allow_debug_override: bool,
 }
@@ -27,7 +28,7 @@ pub struct OtaPolicy {
 impl Default for OtaPolicy {
     fn default() -> Self {
         Self {
-            min_battery_pct: 50,
+            min_loaded_mv: 3100,
             max_image_size_bytes: OtaLayout::default().slot_size_bytes,
             allow_debug_override: true,
         }
@@ -36,7 +37,7 @@ impl Default for OtaPolicy {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OtaPrerequisites {
-    pub battery_pct: u8,
+    pub battery_loaded_mv: Option<u16>,
     pub setup_state: SetupState,
 }
 
@@ -227,7 +228,10 @@ impl OtaController {
     }
 
     fn block_reason(&self, prereq: OtaPrerequisites) -> Option<OtaBlockReason> {
-        if prereq.battery_pct < self.policy.min_battery_pct {
+        if prereq
+            .battery_loaded_mv
+            .is_none_or(|mv| mv < self.policy.min_loaded_mv)
+        {
             return Some(OtaBlockReason::BatteryTooLow);
         }
 
@@ -256,7 +260,7 @@ mod tests {
         let mut ota = OtaController::default();
 
         let status = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 82,
+            battery_loaded_mv: Some(3400),
             setup_state: SetupState::Ready,
         }));
 
@@ -270,7 +274,23 @@ mod tests {
         let mut ota = OtaController::default();
 
         let status = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 20,
+            battery_loaded_mv: Some(3050),
+            setup_state: SetupState::Ready,
+        }));
+
+        assert_eq!(
+            status.state,
+            OtaState::Blocked(OtaBlockReason::BatteryTooLow)
+        );
+        assert!(!status.advertise_ota);
+    }
+
+    #[test]
+    fn unmeasured_battery_blocks_ota() {
+        let mut ota = OtaController::default();
+
+        let status = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
+            battery_loaded_mv: None,
             setup_state: SetupState::Ready,
         }));
 
@@ -286,7 +306,7 @@ mod tests {
         let mut ota = OtaController::default();
 
         let status = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 82,
+            battery_loaded_mv: Some(3400),
             setup_state: SetupState::Discovery,
         }));
 
@@ -301,7 +321,7 @@ mod tests {
         let mut ota = OtaController::default();
 
         let status = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 82,
+            battery_loaded_mv: Some(3400),
             setup_state: SetupState::Debug,
         }));
 
@@ -312,7 +332,7 @@ mod tests {
     fn oversized_image_is_rejected() {
         let mut ota = OtaController::default();
         let _ = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 82,
+            battery_loaded_mv: Some(3400),
             setup_state: SetupState::Ready,
         }));
 
@@ -338,7 +358,7 @@ mod tests {
         };
         let mut ota = OtaController::new(policy, layout);
         let _ = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 82,
+            battery_loaded_mv: Some(3400),
             setup_state: SetupState::Ready,
         }));
 
@@ -356,7 +376,7 @@ mod tests {
     fn ota_progresses_from_download_to_confirmed_boot() {
         let mut ota = OtaController::default();
         let _ = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 82,
+            battery_loaded_mv: Some(3400),
             setup_state: SetupState::Ready,
         }));
 
@@ -391,7 +411,7 @@ mod tests {
     fn verification_failure_moves_to_failed_state() {
         let mut ota = OtaController::default();
         let _ = ota.apply(OtaCommand::Evaluate(OtaPrerequisites {
-            battery_pct: 82,
+            battery_loaded_mv: Some(3400),
             setup_state: SetupState::Ready,
         }));
         let _ = ota.apply(OtaCommand::StartTransfer {

@@ -5,11 +5,14 @@
 //! measurement with an optional short SHT4x heater-assisted load pulse when the
 //! `soc-heater` feature is enabled.
 
+use core::sync::atomic::Ordering;
+
 use defmt::*;
 #[cfg(test)]
 use embassy_futures::block_on;
 use embassy_time::{Duration, Timer};
 
+use crate::BATTERY_LOADED_MV;
 use crate::DIAGNOSTICS_STATE;
 use crate::ENV_DATA;
 #[cfg(feature = "soc-heater")]
@@ -292,6 +295,9 @@ async fn estimate_battery_soc_pct(
     let _ = (bus, config);
 
     if let Some(open_mv) = measured_open_mv {
+        // Without the heater pulse the unloaded voltage is the best available OTA gate input.
+        #[cfg(not(feature = "soc-heater"))]
+        BATTERY_LOADED_MV.store(open_mv, Ordering::Relaxed);
         return battery.update_from_open_voltage(open_mv).percent;
     }
 
@@ -323,6 +329,7 @@ async fn estimate_battery_soc_pct_with_heater(
     }
 
     if let Some(measurement) = measure_battery_with_heater(saadc, bus, ctx).await {
+        BATTERY_LOADED_MV.store(measurement.load_mv, Ordering::Relaxed);
         return battery.update_from_measurement(measurement).percent;
     }
 
@@ -399,12 +406,7 @@ async fn measure_single_battery_pulse(
 
     let load_wait = deferred.wait / 2;
     Timer::after(load_wait).await;
-    let load_mv = sample_vdd_mv(saadc).await.unwrap_or_else(|| {
-        open_mv.saturating_sub(estimate_loaded_voltage_drop_mv(
-            ctx.ambient_temp_cdeg,
-            ctx.board_temp_c,
-        ))
-    });
+    let load_mv = sample_vdd_mv(saadc).await;
 
     let remaining_wait = Duration::from_ticks(
         deferred
@@ -419,7 +421,7 @@ async fn measure_single_battery_pulse(
 
     Some(BatteryMeasurement {
         open_mv,
-        load_mv,
+        load_mv: load_mv?,
         load_current_ma: heater_current_ma(ctx.config.heater_power),
     })
 }
