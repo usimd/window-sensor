@@ -32,7 +32,8 @@ fp-info-cache
 sensor-backups/
 
 # MCUboot signing key (NEVER commit the private key)
-firmware/keys/signing-key.pem
+firmware/keys/*.pem
+!firmware/keys/*.pub.pem
 
 # Build outputs
 firmware/target/
